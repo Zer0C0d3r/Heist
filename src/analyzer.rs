@@ -2,10 +2,36 @@
 
 use crate::cli::CliArgs;
 use crate::models::HistoryEntry;
-use anyhow::Result;
+use anyhow::{Result, Context};
 use std::collections::HashMap;
 
+/// Group history entries into sessions based on a time gap (in minutes)
+pub fn group_sessions<'a>(entries: &'a[&'a HistoryEntry], gap_minutes: i64) -> Vec<Vec<&'a HistoryEntry>> {
+    let mut sessions = vec![];
+    let mut current: Vec<&HistoryEntry> = vec![];
+    let mut last_ts: Option<chrono::DateTime<chrono::Local>> = None;
+    for entry in entries {
+        if let Some(ts) = entry.timestamp {
+            if let Some(last) = last_ts {
+                if ts.signed_duration_since(last).num_minutes() > gap_minutes {
+                    if !current.is_empty() {
+                        sessions.push(current);
+                        current = vec![];
+                    }
+                }
+            }
+            last_ts = Some(ts);
+        }
+        current.push(*entry);
+    }
+    if !current.is_empty() {
+        sessions.push(current);
+    }
+    sessions
+}
+
 /// Analyze history and print stats in CLI mode
+/// Handles filtering, searching, session summary, and export
 pub fn analyze_history(history: &Vec<HistoryEntry>, args: &CliArgs) -> Result<()> {
     use chrono::NaiveDate;
     use regex::Regex;
@@ -22,15 +48,15 @@ pub fn analyze_history(history: &Vec<HistoryEntry>, args: &CliArgs) -> Result<()
     }
     // --search <pattern>
     if let Some(ref pat) = args.search {
-        let re = Regex::new(pat)?;
+        let re = Regex::new(pat).context("Invalid regex pattern")?;
         filtered.retain(|e| re.is_match(&e.command));
     }
     // --range "YYYY-MM-DD:YYYY-MM-DD"
     if let Some(ref range) = args.range {
         let parts: Vec<_> = range.split(':').collect();
         if parts.len() == 2 {
-            let start = NaiveDate::parse_from_str(parts[0], "%Y-%m-%d")?;
-            let end = NaiveDate::parse_from_str(parts[1], "%Y-%m-%d")?;
+            let start = NaiveDate::parse_from_str(parts[0], "%Y-%m-%d").context("Invalid start date")?;
+            let end = NaiveDate::parse_from_str(parts[1], "%Y-%m-%d").context("Invalid end date")?;
             filtered.retain(|e| {
                 if let Some(ts) = e.timestamp {
                     let date = ts.date_naive();
@@ -43,7 +69,6 @@ pub fn analyze_history(history: &Vec<HistoryEntry>, args: &CliArgs) -> Result<()
     }
     // --top N
     if let Some(top_n) = args.top {
-        use std::collections::HashMap;
         let mut freq: HashMap<&str, usize> = HashMap::new();
         for entry in &filtered {
             let cmd = entry.command.split_whitespace().next().unwrap_or("");
@@ -59,29 +84,11 @@ pub fn analyze_history(history: &Vec<HistoryEntry>, args: &CliArgs) -> Result<()
     }
     // --session-summary
     if args.session_summary {
-        // Simple session grouping: 10 min gap
-        let mut sessions = vec![];
-        let mut current: Vec<&HistoryEntry> = vec![];
-        let mut last_ts = None;
-        for entry in &filtered {
-            if let Some(ts) = entry.timestamp {
-                if let Some(last) = last_ts {
-                    if ts.signed_duration_since(last).num_minutes() > 10 {
-                        if !current.is_empty() {
-                            sessions.push(current);
-                            current = vec![];
-                        }
-                    }
-                }
-                last_ts = Some(ts);
-            }
-            current.push(entry);
-        }
-        if !current.is_empty() {
-            sessions.push(current);
-        }
+        let sessions = group_sessions(&filtered, 10);
         println!("Total sessions: {}", sessions.len());
-        let avg_len = sessions.iter().map(|s| s.len()).sum::<usize>() as f64 / sessions.len() as f64;
+        let avg_len = if !sessions.is_empty() {
+            sessions.iter().map(|s| s.len()).sum::<usize>() as f64 / sessions.len() as f64
+        } else { 0.0 };
         println!("Average session length: {:.2} commands", avg_len);
         return Ok(());
     }
@@ -89,17 +96,17 @@ pub fn analyze_history(history: &Vec<HistoryEntry>, args: &CliArgs) -> Result<()
     if let Some(ref fmt) = args.export {
         match fmt.as_str() {
             "json" => {
-                let json = serde_json::to_string_pretty(&filtered)?;
-                let mut f = File::create("heist_export.json")?;
-                f.write_all(json.as_bytes())?;
+                let json = serde_json::to_string_pretty(&filtered).context("Failed to serialize JSON")?;
+                let mut f = File::create("heist_export.json").context("Failed to create JSON export file")?;
+                f.write_all(json.as_bytes()).context("Failed to write JSON export")?;
                 println!("Exported to heist_export.json");
             },
             "csv" => {
-                let mut f = File::create("heist_export.csv")?;
-                writeln!(f, "timestamp,command")?;
+                let mut f = File::create("heist_export.csv").context("Failed to create CSV export file")?;
+                writeln!(f, "timestamp,command").context("Failed to write CSV header")?;
                 for e in &filtered {
                     let ts = e.timestamp.map(|t| t.to_rfc3339()).unwrap_or_default();
-                    writeln!(f, "{}\t{}", ts, e.command)?;
+                    writeln!(f, "{}{},{}", ts, if ts.is_empty() {""} else {""}, e.command.replace(',', " ")).context("Failed to write CSV row")?;
                 }
                 println!("Exported to heist_export.csv");
             },
