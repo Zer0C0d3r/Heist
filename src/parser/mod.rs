@@ -18,8 +18,26 @@ pub fn detect_shell() -> ShellType {
         ShellType::Zsh
     } else if shell.contains("fish") {
         ShellType::Fish
-    } else {
+    } else if shell.contains("csh") && !shell.contains("tcsh") {
+        ShellType::Csh
+    } else if shell.contains("tcsh") {
+        ShellType::Tcsh
+    } else if shell.contains("ksh") {
+        ShellType::Ksh
+    } else if shell.contains("dash") {
+        ShellType::Dash
+    } else if shell.contains("mksh") {
+        ShellType::Mksh
+    } else if shell.contains("yash") {
+        ShellType::Yash
+    } else if shell.contains("osh") {
+        ShellType::Osh
+    } else if shell.contains("sh") {
+        ShellType::Sh
+    } else if shell.contains("bash") {
         ShellType::Bash
+    } else {
+        ShellType::Bash // Default fallback
     }
 }
 
@@ -29,6 +47,14 @@ pub fn parse_history(shell: &ShellType, args: &CliArgs) -> Result<Vec<HistoryEnt
         ShellType::Bash => parse_bash_history(args),
         ShellType::Zsh => parse_zsh_history(args),
         ShellType::Fish => parse_fish_history(args),
+        ShellType::Csh => parse_csh_history(args),
+        ShellType::Tcsh => parse_tcsh_history(args),
+        ShellType::Ksh => parse_ksh_history(args),
+        ShellType::Dash => parse_dash_history(args),
+        ShellType::Sh => parse_sh_history(args),
+        ShellType::Mksh => parse_mksh_history(args),
+        ShellType::Yash => parse_yash_history(args),
+        ShellType::Osh => parse_osh_history(args),
     }
 }
 
@@ -132,6 +158,181 @@ fn parse_fish_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
         entries.push(HistoryEntry {
             timestamp,
             command: cmd,
+            session_id: None,
+        });
+    }
+    Ok(entries)
+}
+
+/// Parse csh history file (~/.history)
+fn parse_csh_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
+    let mut entries = Vec::new();
+    let hist_path = home_dir()
+        .map(|d| d.join(".history"))
+        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
+    if !hist_path.exists() {
+        eprintln!("Warning: csh history file not found at {:?}", hist_path);
+        return Ok(entries);
+    }
+    let file = File::open(&hist_path).context(format!("Failed to open csh history file: {:?}", hist_path))?;
+    let reader = BufReader::new(file);
+    for line in reader.lines() {
+        let line = line?;
+        let trimmed = line.trim();
+        if trimmed.is_empty() { continue; }
+        entries.push(HistoryEntry {
+            timestamp: None, // csh history usually does not have timestamps
+            command: trimmed.to_string(),
+            session_id: None,
+        });
+    }
+    Ok(entries)
+}
+
+/// Parse tcsh history file (~/.history)
+fn parse_tcsh_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
+    // tcsh history format is similar to csh, but may include timestamps if set
+    let mut entries = Vec::new();
+    let hist_path = home_dir()
+        .map(|d| d.join(".history"))
+        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
+    if !hist_path.exists() {
+        eprintln!("Warning: tcsh history file not found at {:?}", hist_path);
+        return Ok(entries);
+    }
+    let file = File::open(&hist_path).context(format!("Failed to open tcsh history file: {:?}", hist_path))?;
+    let reader = BufReader::new(file);
+    for line in reader.lines() {
+        let line = line?;
+        let trimmed = line.trim();
+        if trimmed.is_empty() { continue; }
+        // Example: 1234567890	command
+        let (timestamp, command) = if let Some(tab_idx) = trimmed.find('\t') {
+            let ts = trimmed[..tab_idx].parse::<i64>().ok();
+            let cmd = trimmed[tab_idx+1..].to_string();
+            let timestamp = ts.and_then(|t| chrono::Local.timestamp_opt(t, 0).single());
+            (timestamp, cmd)
+        } else {
+            (None, trimmed.to_string())
+        };
+        entries.push(HistoryEntry {
+            timestamp,
+            command,
+            session_id: None,
+        });
+    }
+    Ok(entries)
+}
+
+/// Parse ksh history file (~/.sh_history)
+fn parse_ksh_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
+    let mut entries = Vec::new();
+    let hist_path = home_dir()
+        .map(|d| d.join(".sh_history"))
+        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
+    if !hist_path.exists() {
+        eprintln!("Warning: ksh history file not found at {:?}", hist_path);
+        return Ok(entries);
+    }
+    let file = File::open(&hist_path).context(format!("Failed to open ksh history file: {:?}", hist_path))?;
+    let reader = BufReader::new(file);
+    for line in reader.lines() {
+        let line = line?;
+        let trimmed = line.trim();
+        if trimmed.is_empty() { continue; }
+        entries.push(HistoryEntry {
+            timestamp: None, // ksh history usually does not have timestamps
+            command: trimmed.to_string(),
+            session_id: None,
+        });
+    }
+    Ok(entries)
+}
+
+/// Parse dash history file
+fn parse_dash_history(args: &CliArgs) -> Result<Vec<HistoryEntry>> {
+    // Dash typically uses the same history file as bash
+    parse_bash_history(args)
+}
+
+/// Parse sh history file
+fn parse_sh_history(args: &CliArgs) -> Result<Vec<HistoryEntry>> {
+    // sh typically uses the same history file as bash
+    parse_bash_history(args)
+}
+
+/// Parse mksh history file (~/.mksh_history)
+fn parse_mksh_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
+    let mut entries = Vec::new();
+    let hist_path = home_dir()
+        .map(|d| d.join(".mksh_history"))
+        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
+    if !hist_path.exists() {
+        eprintln!("Warning: mksh history file not found at {:?}", hist_path);
+        return Ok(entries);
+    }
+    let file = File::open(&hist_path).context(format!("Failed to open mksh history file: {:?}", hist_path))?;
+    let reader = BufReader::new(file);
+    for line in reader.lines() {
+        let line = line?;
+        let trimmed = line.trim();
+        if trimmed.is_empty() { continue; }
+        // TODO: Add timestamp parsing if present
+        entries.push(HistoryEntry {
+            timestamp: None,
+            command: trimmed.to_string(),
+            session_id: None,
+        });
+    }
+    Ok(entries)
+}
+
+/// Parse yash history file (~/.yash_history)
+fn parse_yash_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
+    let mut entries = Vec::new();
+    let hist_path = home_dir()
+        .map(|d| d.join(".yash_history"))
+        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
+    if !hist_path.exists() {
+        eprintln!("Warning: yash history file not found at {:?}", hist_path);
+        return Ok(entries);
+    }
+    let file = File::open(&hist_path).context(format!("Failed to open yash history file: {:?}", hist_path))?;
+    let reader = BufReader::new(file);
+    for line in reader.lines() {
+        let line = line?;
+        let trimmed = line.trim();
+        if trimmed.is_empty() { continue; }
+        // TODO: Add timestamp parsing if present
+        entries.push(HistoryEntry {
+            timestamp: None,
+            command: trimmed.to_string(),
+            session_id: None,
+        });
+    }
+    Ok(entries)
+}
+
+/// Parse osh history file (~/.osh_history)
+fn parse_osh_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
+    let mut entries = Vec::new();
+    let hist_path = home_dir()
+        .map(|d| d.join(".osh_history"))
+        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
+    if !hist_path.exists() {
+        eprintln!("Warning: osh history file not found at {:?}", hist_path);
+        return Ok(entries);
+    }
+    let file = File::open(&hist_path).context(format!("Failed to open osh history file: {:?}", hist_path))?;
+    let reader = BufReader::new(file);
+    for line in reader.lines() {
+        let line = line?;
+        let trimmed = line.trim();
+        if trimmed.is_empty() { continue; }
+        // TODO: Add timestamp parsing if present
+        entries.push(HistoryEntry {
+            timestamp: None,
+            command: trimmed.to_string(),
             session_id: None,
         });
     }

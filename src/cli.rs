@@ -42,4 +42,13 @@ pub enum ShellType {
     Bash,
     Zsh,
     Fish,
+    Csh,
+    Tcsh,
+    Ksh,
+    Dash,
+    Sh,
+    Mksh,
+    Yash,
+    Osh,
+    // Add more as needed
 }

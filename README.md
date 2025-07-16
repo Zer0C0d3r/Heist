@@ -1,6 +1,6 @@
 # Heist
 
-**Heist** is a blazing-fast, cross-platform terminal shell history analyzer with both interactive TUI and CLI modes. It supports Linux, macOS, BSD, and Termux, and can parse Bash, Zsh, and Fish shell histories.
+**Heist** is a blazing-fast, cross-platform shell history analyzer with interactive TUI and CLI modes. It supports Linux, macOS, BSD, and Termux, and can parse history from Bash, Zsh, Fish, Csh, Tcsh, Ksh, Dash, Sh, Mksh, Yash, Osh, and more.
 
 ---
 
@@ -15,16 +15,16 @@ Heist is designed for:
 **Why Heist?**
 
 - Most shell history tools are either too simple or too complex. Heist aims for a sweet spot: fast, beautiful, and powerful, but easy to use and extend.
-- TUI and CLI are first-class citizens: you can use Heist as a daily dashboard or a quick command-line tool.
+- TUI and CLI are first-class citizens: use Heist as a daily dashboard or a quick command-line tool.
 - Designed for privacy: all analysis is local, no cloud sync by default.
 
 ---
 
 ## 🚀 Features
 
-- Interactive TUI with rich ASCII/Unicode graphics (powered by ratatui, crossterm, Nerd Fonts)
+- Interactive TUI with rich ASCII/Unicode graphics (ratatui, crossterm, Nerd Fonts)
 - CLI mode for quick stats, search, and export
-- Supports Bash, Zsh, and Fish history formats
+- Supports history formats for Bash, Zsh, Fish, Csh, Tcsh, Ksh, Dash, Sh, Mksh, Yash, Osh
 - Modular, extensible, and performant Rust codebase
 - Export to CSV/JSON, session analytics, regex search, and more
 - Global installer/uninstaller script
@@ -34,10 +34,16 @@ Heist is designed for:
 
 ## 🧩 Shell History Format Details
 
-- **Bash**: `~/.bash_history` (plain text, optionally with timestamps if `HISTTIMEFORMAT` is set)
-- **Zsh**: `~/.zsh_history` (lines like `: 1640995200:0;command`, timestamps always present)
-- **Fish**: `~/.local/share/fish/fish_history` (YAML-like, with `- cmd:` and `when:` fields)
-- **Session grouping**: Commands are grouped into sessions if there is a gap of 10+ minutes between them.
+- **Bash**: `~/.bash_history` (plain text)
+- **Zsh**: `~/.zsh_history` (timestamps)
+- **Fish**: `~/.local/share/fish/fish_history` (YAML-like)
+- **Csh/Tcsh**: `~/.history` (plain text, tcsh may have timestamps)
+- **Ksh**: `~/.sh_history` (plain text)
+- **Dash/Sh**: typically use Bash format
+- **Mksh**: `~/.mksh_history` (plain text)
+- **Yash**: `~/.yash_history` (plain text)
+- **Osh**: `~/.osh_history` (plain text)
+- **Session grouping**: Commands are grouped if there is a gap of 10+ minutes between them.
 
 ---
 
@@ -63,18 +69,17 @@ Heist is designed for:
 ### 1. Prerequisites
 
 - **Rust** (install from [rustup.rs](https://rustup.rs/))
-- **Nerd Font** (for best TUI experience, e.g. [FiraCode Nerd Font](https://www.nerdfonts.com/))
-- A POSIX-compliant shell (bash, zsh, or fish)
+- **Nerd Font** (for best TUI experience)
+- A POSIX-compliant shell (bash, zsh, fish, csh, tcsh, ksh, dash, sh, mksh, yash, osh)
 
 ### 2. Quick Install (Recommended)
 
 ```sh
 # Clone the repo
- git clone https://github.com/Zer0C0d3r/Heist.git
- cd heist
-
-# Run the interactive installer (installs globally to /usr/local/bin)
- ./install.sh
+git clone https://github.com/Zer0C0d3r/Heist.git
+cd Heist
+# Run the interactive installer
+./install.sh
 ```
 
 - To **uninstall**, run `./install.sh` and choose the uninstall option.
@@ -113,7 +118,7 @@ heist --cli [flags]
 - `--filter <command>` Only analyze specific commands
 - `--range "YYYY-MM-DD:YYYY-MM-DD"` Filter by date range
 - `--export <format>` Export data to CSV or JSON
-- `--shell <bash|zsh|fish>` Force shell type
+- `--shell <bash|zsh|fish|csh|tcsh|ksh|dash|sh|mksh|yash|osh>` Force shell type
 - `--session-summary` Print session-level stats
 
 #### Examples
@@ -152,9 +157,15 @@ heist --cli --session-summary
 
 ## 🐚 Supported Shells & History Files
 
-- **Bash**: `~/.bash_history` (plain text)
-- **Zsh**: `~/.zsh_history` (timestamps supported)
-- **Fish**: `~/.local/share/fish/fish_history` (YAML-like)
+- **Bash**: `~/.bash_history`
+- **Zsh**: `~/.zsh_history`
+- **Fish**: `~/.local/share/fish/fish_history`
+- **Csh/Tcsh**: `~/.history`
+- **Ksh**: `~/.sh_history`
+- **Dash/Sh**: Bash format
+- **Mksh**: `~/.mksh_history`
+- **Yash**: `~/.yash_history`
+- **Osh**: `~/.osh_history`
 - Auto-detects shell, or use `--shell` to override
 
 ---
@@ -166,14 +177,14 @@ heist --cli --session-summary
 - Session grouping (10 min gap)
 - Export to CSV/JSON
 - Session stats: total sessions, average session length
-- (Planned) Alias suggestions, dangerous command detection, plugin/AI support
+- Alias suggestions, dangerous command detection, plugin/AI support (planned)
 
 ---
 
 ## 🛠️ Troubleshooting
 
 - **TUI looks weird?**
-  - Make sure you use a Nerd Font in your terminal
+  - Use a Nerd Font in your terminal
   - Try a different terminal emulator if colors/icons are missing
 - **Permission denied?**
   - Use `sudo` for global install, or install to a user-writable directory
@@ -194,7 +205,7 @@ heist --cli --session-summary
 - Run tests: `cargo test`
 - Lint/fix: `cargo clippy`, `cargo fmt`
 - Contribute via PRs and issues!
-- See the [TODO](#-todo-long-term--future) for ideas to contribute
+- See the TODO for ideas to contribute
 
 ---
 
@@ -219,9 +230,9 @@ heist/
 
 ## 📝 TODO (Long Term & Future)
 
-- [ ] **Fish/Bash/Zsh session detection improvements**
-- [ ] **Alias suggestion engine** (detect repetitive/long commands)
-- [ ] **Dangerous command flagging** (e.g. `rm -rf /`)
+- [ ] **Session detection improvements for all shells**
+- [ ] **Alias suggestion engine**
+- [ ] **Dangerous command flagging**
 - [ ] **Time-of-day and heatmap analytics**
 - [ ] **Per-directory and per-host stats**
 - [ ] **Plugin system for custom analytics**
