@@ -9,6 +9,7 @@ use std::io::{BufRead, BufReader};
 use dirs::home_dir;
 use chrono::{DateTime, Local, TimeZone};
 use regex::Regex;
+use std::fs;
 
 /// Detect the user's shell from the SHELL environment variable
 pub fn detect_shell() -> ShellType {
@@ -164,6 +165,20 @@ fn parse_fish_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
     Ok(entries)
 }
 
+/// Helper: Infer timestamps for plain-text history files (no native timestamps)
+fn infer_timestamps_from_file(hist_path: &std::path::Path, lines: &[String]) -> Vec<Option<DateTime<Local>>> {
+    // Use file mtime as the most recent timestamp, spread backwards
+    let meta = fs::metadata(hist_path).ok();
+    let mtime = meta.and_then(|m| m.modified().ok()).map(|t| DateTime::<Local>::from(t));
+    let n = lines.len();
+    if let Some(last_ts) = mtime {
+        // Spread timestamps backwards by 1 minute per command
+        (0..n).rev().map(|i| Some(last_ts - chrono::Duration::minutes((n-1-i) as i64))).collect()
+    } else {
+        vec![None; n]
+    }
+}
+
 /// Parse csh history file (~/.history)
 fn parse_csh_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
     let mut entries = Vec::new();
@@ -176,12 +191,13 @@ fn parse_csh_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
     }
     let file = File::open(&hist_path).context(format!("Failed to open csh history file: {:?}", hist_path))?;
     let reader = BufReader::new(file);
-    for line in reader.lines() {
-        let line = line?;
+    let lines: Vec<String> = reader.lines().filter_map(Result::ok).collect();
+    let timestamps = infer_timestamps_from_file(&hist_path, &lines);
+    for (i, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
         if trimmed.is_empty() { continue; }
         entries.push(HistoryEntry {
-            timestamp: None, // csh history usually does not have timestamps
+            timestamp: timestamps.get(i).cloned().unwrap_or(None),
             command: trimmed.to_string(),
             session_id: None,
         });
@@ -236,12 +252,13 @@ fn parse_ksh_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
     }
     let file = File::open(&hist_path).context(format!("Failed to open ksh history file: {:?}", hist_path))?;
     let reader = BufReader::new(file);
-    for line in reader.lines() {
-        let line = line?;
+    let lines: Vec<String> = reader.lines().filter_map(Result::ok).collect();
+    let timestamps = infer_timestamps_from_file(&hist_path, &lines);
+    for (i, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
         if trimmed.is_empty() { continue; }
         entries.push(HistoryEntry {
-            timestamp: None, // ksh history usually does not have timestamps
+            timestamp: timestamps.get(i).cloned().unwrap_or(None),
             command: trimmed.to_string(),
             session_id: None,
         });
@@ -273,13 +290,13 @@ fn parse_mksh_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
     }
     let file = File::open(&hist_path).context(format!("Failed to open mksh history file: {:?}", hist_path))?;
     let reader = BufReader::new(file);
-    for line in reader.lines() {
-        let line = line?;
+    let lines: Vec<String> = reader.lines().filter_map(Result::ok).collect();
+    let timestamps = infer_timestamps_from_file(&hist_path, &lines);
+    for (i, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
         if trimmed.is_empty() { continue; }
-        // TODO: Add timestamp parsing if present
         entries.push(HistoryEntry {
-            timestamp: None,
+            timestamp: timestamps.get(i).cloned().unwrap_or(None),
             command: trimmed.to_string(),
             session_id: None,
         });
@@ -299,13 +316,13 @@ fn parse_yash_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
     }
     let file = File::open(&hist_path).context(format!("Failed to open yash history file: {:?}", hist_path))?;
     let reader = BufReader::new(file);
-    for line in reader.lines() {
-        let line = line?;
+    let lines: Vec<String> = reader.lines().filter_map(Result::ok).collect();
+    let timestamps = infer_timestamps_from_file(&hist_path, &lines);
+    for (i, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
         if trimmed.is_empty() { continue; }
-        // TODO: Add timestamp parsing if present
         entries.push(HistoryEntry {
-            timestamp: None,
+            timestamp: timestamps.get(i).cloned().unwrap_or(None),
             command: trimmed.to_string(),
             session_id: None,
         });
@@ -325,13 +342,13 @@ fn parse_osh_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
     }
     let file = File::open(&hist_path).context(format!("Failed to open osh history file: {:?}", hist_path))?;
     let reader = BufReader::new(file);
-    for line in reader.lines() {
-        let line = line?;
+    let lines: Vec<String> = reader.lines().filter_map(Result::ok).collect();
+    let timestamps = infer_timestamps_from_file(&hist_path, &lines);
+    for (i, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
         if trimmed.is_empty() { continue; }
-        // TODO: Add timestamp parsing if present
         entries.push(HistoryEntry {
-            timestamp: None,
+            timestamp: timestamps.get(i).cloned().unwrap_or(None),
             command: trimmed.to_string(),
             session_id: None,
         });
