@@ -248,7 +248,7 @@ heist/
 - [ ] **Better error messages and logging**
 - [ ] **Performance benchmarks and tuning**
 - [ ] **Unit and integration tests for all modules**
-- [ ] **CI/CD improvements and release automation**
+- [x] **CI/CD improvements and release automation** (Advanced GitHub Actions: build, test, changelog, and auto-release on tag)
 - [ ] **Better documentation and user guides**
 
 ---
