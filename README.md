@@ -230,7 +230,7 @@ heist/
 
 ## 📝 TODO (Long Term & Future)
 
-- [ ] **Session detection improvements for all shells**
+- [x] **Session detection improvements for all shells** (timestamp inference for plain-text shells, robust grouping for all supported shells)
 - [ ] **Alias suggestion engine**
 - [ ] **Dangerous command flagging**
 - [ ] **Time-of-day and heatmap analytics**
@@ -247,7 +247,6 @@ heist/
 - [ ] **Internationalization (i18n)**
 - [ ] **Better error messages and logging**
 - [ ] **Performance benchmarks and tuning**
-- [ ] **More shell support (tcsh, ksh, etc.)**
 - [ ] **Unit and integration tests for all modules**
 - [ ] **CI/CD improvements and release automation**
 - [ ] **Better documentation and user guides**
