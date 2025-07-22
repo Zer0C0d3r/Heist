@@ -5,7 +5,7 @@ set -e
 APP_NAME="heist"
 INSTALL_DIR="/usr/local/bin"
 CARGO_BIN="${HOME}/.cargo/bin/${APP_NAME}"
-VERSION="v0.1.7"
+VERSION="v0.1.9"
 
 # Colors
 GREEN='\033[0;32m'

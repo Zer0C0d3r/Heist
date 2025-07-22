@@ -56,6 +56,28 @@ pub fn suggest_aliases(history: &[HistoryEntry]) {
     }
 }
 
+/// Flag potentially dangerous commands in history
+pub fn flag_dangerous(history: &[HistoryEntry]) {
+    // List of dangerous command patterns (simple, can be extended)
+    let patterns = [
+        "rm -rf", "rm -r /", "dd if=", "mkfs", ":(){ :|:& };:", "shutdown", "reboot", "curl | sh", "wget | sh", "chmod 777 /", "chown root", "> /dev/sda", "/dev/sda", ":(){ :|: & };:", "rm -rf --no-preserve-root", "poweroff", "halt", "init 0", "mkfs.ext", "dd of=/dev/", "mv /", "cp /dev/null", "yes | rm", "yes | dd", "yes | mkfs"
+    ];
+    println!("\nDangerous Command Flagging:");
+    let mut found = false;
+    for entry in history {
+        for pat in &patterns {
+            if entry.command.contains(pat) {
+                println!("⚠️  {}\n    ↳ Matched pattern: '{}'", entry.command, pat);
+                found = true;
+                break;
+            }
+        }
+    }
+    if !found {
+        println!("No dangerous commands found in history.");
+    }
+}
+
 /// Analyze history and print stats in CLI mode
 /// Handles filtering, searching, session summary, and export
 pub fn analyze_history(history: &Vec<HistoryEntry>, args: &CliArgs) -> Result<()> {
@@ -92,6 +114,16 @@ pub fn analyze_history(history: &Vec<HistoryEntry>, args: &CliArgs) -> Result<()
                 }
             });
         }
+    }
+    // --suggest-aliases
+    if args.suggest_aliases {
+        suggest_aliases(&filtered.iter().map(|e| (*e).clone()).collect::<Vec<_>>());
+        return Ok(());
+    }
+    // --flag-dangerous
+    if args.flag_dangerous {
+        flag_dangerous(&filtered.iter().map(|e| (*e).clone()).collect::<Vec<_>>());
+        return Ok(());
     }
     // --top N
     if let Some(top_n) = args.top {
