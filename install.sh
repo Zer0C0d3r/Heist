@@ -131,9 +131,9 @@ main_menu() {
         echo -e "${CYAN}This script will build and install Heist globally, update, or uninstall it.${NC}"
         echo -e "${YELLOW}You may need sudo privileges to copy to ${INSTALL_DIR}.${NC}\n"
         echo -e "${CYAN}Options:${NC}"
-        echo -e "  [1] Install/Update Heist"
+        echo -e "  [1] Install Heist"
         echo -e "  [2] Uninstall Heist"
-        echo -e "  [3] Update Heist (auto, like oh-my-zsh)"
+        echo -e "  [3] Update Heist"
         echo -e "  [q] Quit"
         echo -en "${BOLD}Choose an option:${NC} "
         read -r opt
