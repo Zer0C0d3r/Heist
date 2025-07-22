@@ -1,6 +1,6 @@
 [package]
 name = "heist"
-version = "0.1.9"
+version = "0.2.0"
 edition = "2021"
 description = "Cross-platform terminal shell history analyzer with TUI and CLI modes."
 authors = ["Zer0C0d3r <odin.coder77@proton.me>"]

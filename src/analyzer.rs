@@ -78,6 +78,45 @@ pub fn flag_dangerous(history: &[HistoryEntry]) {
     }
 }
 
+/// Show per-directory command stats
+pub fn per_directory_stats(history: &[HistoryEntry]) {
+    use std::collections::HashMap;
+    let mut dir_counts: HashMap<String, usize> = HashMap::new();
+    let mut last_dir = String::from("~");
+    for entry in history {
+        // Naive extraction: look for 'cd <dir>' or remember last cd
+        if entry.command.starts_with("cd ") {
+            let dir = entry.command[3..].trim().to_string();
+            last_dir = dir.clone();
+            *dir_counts.entry(dir).or_insert(0) += 1;
+        } else {
+            *dir_counts.entry(last_dir.clone()).or_insert(0) += 1;
+        }
+    }
+    let mut dir_vec: Vec<_> = dir_counts.into_iter().collect();
+    dir_vec.sort_by(|a, b| b.1.cmp(&a.1));
+    println!("\nPer-directory command stats:");
+    for (dir, count) in dir_vec.iter().take(15) {
+        println!("{:<30} {}", dir, count);
+    }
+}
+
+/// Show per-host command stats (if host info is available)
+pub fn per_host_stats(history: &[HistoryEntry]) {
+    use std::collections::HashMap;
+    use std::env;
+    let mut host_counts: HashMap<String, usize> = HashMap::new();
+    let hostname = env::var("HOSTNAME").unwrap_or_else(|_| "localhost".to_string());
+    // If no host info in history, just use current host
+    for _ in history {
+        *host_counts.entry(hostname.clone()).or_insert(0) += 1;
+    }
+    println!("\nPer-host command stats:");
+    for (host, count) in host_counts {
+        println!("{:<20} {}", host, count);
+    }
+}
+
 /// Analyze history and print stats in CLI mode
 /// Handles filtering, searching, session summary, and export
 pub fn analyze_history(history: &Vec<HistoryEntry>, args: &CliArgs) -> Result<()> {
@@ -123,6 +162,16 @@ pub fn analyze_history(history: &Vec<HistoryEntry>, args: &CliArgs) -> Result<()
     // --flag-dangerous
     if args.flag_dangerous {
         flag_dangerous(&filtered.iter().map(|e| (*e).clone()).collect::<Vec<_>>());
+        return Ok(());
+    }
+    // --per-directory
+    if args.per_directory {
+        per_directory_stats(&filtered.iter().map(|e| (*e).clone()).collect::<Vec<_>>());
+        return Ok(());
+    }
+    // --per-host
+    if args.per_host {
+        per_host_stats(&filtered.iter().map(|e| (*e).clone()).collect::<Vec<_>>());
         return Ok(());
     }
     // --top N

@@ -233,8 +233,8 @@ heist/
 - [x] **Session detection improvements for all shells** (timestamp inference for plain-text shells, robust grouping for all supported shells)
 - [x] **Alias suggestion engine** (Suggests aliases for long/frequent commands via CLI)
 - [x] **Dangerous command flagging** (Flags risky commands in history via CLI)
+- [x] **Per-directory and per-host stats** (CLI: --per-directory, --per-host)
 - [ ] **Time-of-day and heatmap analytics**
-- [ ] **Per-directory and per-host stats**
 - [ ] **Plugin system for custom analytics**
 - [ ] **Live tracking via PROMPT_COMMAND**
 - [ ] **Cloud sync (opt-in, privacy-first)**

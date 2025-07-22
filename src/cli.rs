@@ -43,6 +43,13 @@ pub struct CliArgs {
     /// Flag potentially dangerous commands in history
     #[arg(long)]
     pub flag_dangerous: bool,
+
+    /// Show per-directory command stats
+    #[arg(long)]
+    pub per_directory: bool,
+    /// Show per-host command stats
+    #[arg(long)]
+    pub per_host: bool,
 }
 
 #[derive(ValueEnum, Debug, Clone)]
