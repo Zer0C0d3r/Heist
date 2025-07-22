@@ -50,6 +50,13 @@ pub struct CliArgs {
     /// Show per-host command stats
     #[arg(long)]
     pub per_host: bool,
+
+    /// Show time-of-day command usage analytics
+    #[arg(long)]
+    pub time_of_day: bool,
+    /// Show weekly heatmap of command usage
+    #[arg(long)]
+    pub heatmap: bool,
 }
 
 #[derive(ValueEnum, Debug, Clone)]

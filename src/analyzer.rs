@@ -117,6 +117,54 @@ pub fn per_host_stats(history: &[HistoryEntry]) {
     }
 }
 
+/// Show time-of-day command usage analytics
+pub fn time_of_day_stats(history: &[HistoryEntry]) {
+    use chrono::Timelike;
+    let mut hours = [0usize; 24];
+    for entry in history {
+        if let Some(ts) = entry.timestamp {
+            hours[ts.hour() as usize] += 1;
+        }
+    }
+    println!("\nTime-of-day command usage (hourly):");
+    for (h, count) in hours.iter().enumerate() {
+        let bar = "#".repeat(*count / 2.max(1));
+        println!("{:02}:00 {:>4} {}", h, count, bar);
+    }
+}
+
+/// Show weekly heatmap of command usage
+pub fn heatmap_stats(history: &[HistoryEntry]) {
+    use chrono::{Datelike, Timelike};
+    let mut heatmap = [[0usize; 24]; 7]; // [weekday][hour]
+    for entry in history {
+        if let Some(ts) = entry.timestamp {
+            let wd = ts.weekday().num_days_from_monday() as usize;
+            let hr = ts.hour() as usize;
+            heatmap[wd][hr] += 1;
+        }
+    }
+    let days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    println!("\nWeekly command usage heatmap (hour x day):");
+    print!("     ");
+    for h in 0..24 { print!("{:02} ", h); }
+    println!();
+    for (d, row) in heatmap.iter().enumerate() {
+        print!("{:>3} | ", days[d]);
+        for &count in row {
+            let c = match count {
+                0 => ' ',
+                1..=2 => '.',
+                3..=5 => '*',
+                6..=10 => 'o',
+                _ => '#',
+            };
+            print!(" {} ", c);
+        }
+        println!();
+    }
+}
+
 /// Analyze history and print stats in CLI mode
 /// Handles filtering, searching, session summary, and export
 pub fn analyze_history(history: &Vec<HistoryEntry>, args: &CliArgs) -> Result<()> {
@@ -172,6 +220,16 @@ pub fn analyze_history(history: &Vec<HistoryEntry>, args: &CliArgs) -> Result<()
     // --per-host
     if args.per_host {
         per_host_stats(&filtered.iter().map(|e| (*e).clone()).collect::<Vec<_>>());
+        return Ok(());
+    }
+    // --time-of-day
+    if args.time_of_day {
+        time_of_day_stats(&filtered.iter().map(|e| (*e).clone()).collect::<Vec<_>>());
+        return Ok(());
+    }
+    // --heatmap
+    if args.heatmap {
+        heatmap_stats(&filtered.iter().map(|e| (*e).clone()).collect::<Vec<_>>());
         return Ok(());
     }
     // --top N

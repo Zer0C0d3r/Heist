@@ -177,7 +177,9 @@ heist --cli --session-summary
 - Session grouping (10 min gap)
 - Export to CSV/JSON
 - Session stats: total sessions, average session length
-- Alias suggestions, dangerous command detection, plugin/AI support (planned)
+- Alias suggestions, dangerous command detection
+- **Time-of-day analytics:** Show hourly command usage with `--time-of-day`
+- **Weekly heatmap analytics:** Show hour-by-day usage heatmap with `--heatmap`
 
 ---
 
@@ -235,16 +237,9 @@ heist/
 - [x] **Dangerous command flagging** (Flags risky commands in history via CLI)
 - [x] **Per-directory and per-host stats** (CLI: --per-directory, --per-host)
 - [ ] **Time-of-day and heatmap analytics**
-- [ ] **Plugin system for custom analytics**
 - [ ] **Live tracking via PROMPT_COMMAND**
-- [ ] **Cloud sync (opt-in, privacy-first)**
-- [ ] **SQLite backend for large history**
-- [ ] **HTML dashboard export**
-- [ ] **Config file support (TOML/YAML/JSON)**
-- [ ] **Customizable TUI themes**
 - [ ] **Vim/Emacs keybindings in TUI**
 - [ ] **Accessibility improvements**
-- [ ] **Internationalization (i18n)**
 - [ ] **Better error messages and logging**
 - [ ] **Performance benchmarks and tuning**
 - [ ] **Unit and integration tests for all modules**
