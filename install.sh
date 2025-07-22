@@ -100,15 +100,40 @@ install() {
     fi
 }
 
+# Update Heist (like oh-my-zsh updater)
+update() {
+    echo -e "${CYAN}Checking for updates...${NC}"
+    if [ ! -d .git ]; then
+        echo -e "${RED}Not a git repository. Cannot update automatically.${NC}"
+        return 1
+    fi
+    git fetch origin master &> /dev/null
+    LOCAL=$(git rev-parse @)
+    REMOTE=$(git rev-parse @{u})
+    BASE=$(git merge-base @ @{u})
+    if [ "$LOCAL" = "$REMOTE" ]; then
+        echo -e "${GREEN}Heist is already up to date!${NC}"
+    elif [ "$LOCAL" = "$BASE" ]; then
+        echo -e "${YELLOW}Updating Heist to latest version...${NC}"
+        git pull --rebase --autostash
+        install
+        echo -e "${GREEN}Heist updated and reinstalled!${NC}"
+    else
+        echo -e "${RED}Local changes detected. Please commit or stash before updating.${NC}"
+        return 1
+    fi
+}
+
 # Main menu
 main_menu() {
     while true; do
         banner
-        echo -e "${CYAN}This script will build and install Heist globally, or uninstall it.${NC}"
+        echo -e "${CYAN}This script will build and install Heist globally, update, or uninstall it.${NC}"
         echo -e "${YELLOW}You may need sudo privileges to copy to ${INSTALL_DIR}.${NC}\n"
         echo -e "${CYAN}Options:${NC}"
         echo -e "  [1] Install/Update Heist"
         echo -e "  [2] Uninstall Heist"
+        echo -e "  [3] Update Heist (auto, like oh-my-zsh)"
         echo -e "  [q] Quit"
         echo -en "${BOLD}Choose an option:${NC} "
         read -r opt
@@ -123,6 +148,10 @@ main_menu() {
                 ;;
             2)
                 uninstall
+                ;;
+            3)
+                update
+                prompt_continue
                 ;;
             q|Q)
                 echo "Aborted."
