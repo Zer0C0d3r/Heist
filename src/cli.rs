@@ -39,6 +39,10 @@ pub struct CliArgs {
     /// Suggest aliases for long or frequently used commands
     #[arg(long)]
     pub suggest_aliases: bool,
+
+    /// Flag potentially dangerous commands in history
+    #[arg(long)]
+    pub flag_dangerous: bool,
 }
 
 #[derive(ValueEnum, Debug, Clone)]
