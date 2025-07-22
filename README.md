@@ -238,11 +238,11 @@ heist/
 - [x] **Per-directory and per-host stats** (CLI: --per-directory, --per-host)
 - [x] **Time-of-day and heatmap analytics**
 - [x] **Live tracking via PROMPT_COMMAND** (real-time command logging for Bash/Zsh, see README)
-- [ ] **Vim/Emacs keybindings in TUI**
-- [ ] **Accessibility improvements**
-- [ ] **Better error messages and logging**
+- [x] **Vim/Emacs keybindings in TUI**
+- [x] **Accessibility improvements**
+- [x] **Better error messages and logging**
 - [ ] **Performance benchmarks and tuning**
-- [ ] **Unit and integration tests for all modules**
+- [x] **Unit and integration tests for all modules**
 - [x] **CI/CD improvements and release automation** (Advanced GitHub Actions: build, test, changelog, and auto-release on tag)
 - [ ] **Better documentation and user guides**
 
