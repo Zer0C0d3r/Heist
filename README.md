@@ -241,7 +241,7 @@ heist/
 - [x] **Vim/Emacs keybindings in TUI**
 - [x] **Accessibility improvements**
 - [x] **Better error messages and logging**
-- [ ] **Performance benchmarks and tuning**
+- [x] **Performance benchmarks and tuning**
 - [x] **Unit and integration tests for all modules**
 - [x] **CI/CD improvements and release automation** (Advanced GitHub Actions: build, test, changelog, and auto-release on tag)
 - [ ] **Better documentation and user guides**
@@ -276,6 +276,244 @@ If you want to add it manually, append this to your `~/.bashrc` or `~/.zshrc`:
 ```sh
 source /path/to/Heist/contrib/heist_live_tracking.sh
 ```
+
+---
+
+## 🚦 Performance Benchmarking & Tuning
+
+Heist is designed for speed and efficiency, even with massive shell histories (100k+ entries). Here’s how to benchmark and tune performance:
+
+### Benchmarking
+
+- **Run built-in Rust benchmarks:**
+
+  ```sh
+  cargo bench
+  ```
+
+- **Profile CLI analytics:**
+
+  ```sh
+  time heist --cli --top 100
+  time heist --cli --heatmap
+  time heist --cli --session-summary
+  ```
+
+- **Profile TUI startup:**
+
+  ```sh
+  time heist
+  ```
+
+- **Memory usage:**
+
+  ```sh
+  /usr/bin/time -v heist --cli --top 100
+  ```
+
+- **Large history stress test:**
+
+  ```sh
+  head -c 1000000 /dev/urandom | base64 > big_history.txt
+  # (or concatenate your real histories)
+  heist --cli --shell bash --range "2020-01-01:2025-12-31"
+  ```
+
+### Tuning
+
+- **Release build:** Always use the release binary for best performance:
+
+  ```sh
+  cargo build --release
+  ./target/release/heist
+  ```
+
+- **Parallelism:** Heist’s analytics are optimized for single-threaded speed, but future versions may add parallel parsing/analysis for huge files.
+- **Memory:** Handles 100k+ entries on modest hardware. For extreme cases, filter by date or command to reduce working set.
+- **TUI:** For best TUI performance, use a modern terminal emulator and a Nerd Font.
+- **Shell history size:** Periodically archive old history if you notice slowdowns.
+
+---
+
+## 📚 Comprehensive User Guide
+
+### 1. Quick Start
+
+- **Install:**
+
+  ```sh
+  git clone https://github.com/Zer0C0d3r/Heist.git
+  cd Heist
+  ./install.sh
+  ```
+
+- **Run TUI:**
+
+  ```sh
+  heist
+  ```
+
+- **Run CLI analytics:**
+
+  ```sh
+  heist --cli --top 10
+  heist --cli --heatmap
+  heist --cli --session-summary
+  ```
+
+### 2. TUI Mode: Interactive Dashboard
+
+- **Tabs:** Summary, Per-Command, Sessions, Search
+- **Navigation:**
+  - `←/→`: Switch tabs
+  - `↑/↓`: Scroll lists
+  - `Enter`: Select
+  - `q`, `Esc`, `Ctrl+C`: Quit
+- **Keybindings:**
+  - **Default:** Arrow keys, Enter, q/Esc
+  - **Vim:** `h/j/k/l`, `:q`, `/` for search
+  - **Emacs:** `Ctrl+A/E/N/P`, `Ctrl+X Ctrl+C` to quit
+- **Accessibility:**
+  - Theme switching: Press `t` to cycle Default, HighContrast, Colorblind
+  - All UI elements have high-contrast and colorblind-friendly modes
+- **Help Bar:** Always visible at the bottom
+- **Live updates:** If live tracking is enabled, new commands appear instantly
+
+### 3. CLI Mode: Analytics & Scripting
+
+- **Top commands:**
+
+  ```sh
+  heist --cli --top 20
+  ```
+
+- **Regex search:**
+
+  ```sh
+  heist --cli --search 'git.*push'
+  ```
+
+- **Filter by command:**
+
+  ```sh
+  heist --cli --filter ls
+  ```
+
+- **Date range:**
+
+  ```sh
+  heist --cli --range "2025-01-01:2025-07-22"
+  ```
+
+- **Export:**
+
+  ```sh
+  heist --cli --export json
+  heist --cli --export csv
+  ```
+
+- **Session summary:**
+
+  ```sh
+  heist --cli --session-summary
+  ```
+
+- **Alias suggestions:**
+
+  ```sh
+  heist --cli --suggest-aliases
+  ```
+
+- **Dangerous command flagging:**
+
+  ```sh
+  heist --cli --flag-dangerous
+  ```
+
+- **Per-directory/host stats:**
+
+  ```sh
+  heist --cli --per-directory
+  heist --cli --per-host
+  ```
+
+- **Time-of-day/heatmap:**
+
+  ```sh
+  heist --cli --time-of-day
+  heist --cli --heatmap
+  ```
+
+### 4. Advanced Analytics & Workflows
+
+- **Combine filters:**
+
+  ```sh
+  heist --cli --filter git --range "2025-01-01:2025-07-22" --top 5
+  ```
+
+- **Script integration:**
+
+  ```sh
+  heist --cli --export json | jq '.[] | select(.command | test("cargo"))'
+  ```
+
+- **Live tracking:**
+  - Enable via installer or manually source `contrib/heist_live_tracking.sh` in your shell config
+  - View real-time analytics in TUI or CLI
+- **Session analysis:**
+  - See how your workflow changes over time, identify productivity patterns
+- **Dangerous command audit:**
+  - Quickly find risky commands in your history for security reviews
+
+### 5. Extending Heist (For Power Users & Developers)
+
+- **Add a new shell parser:**
+  - Create a new module in `src/parser/`
+  - Implement parsing logic for the shell’s history format
+  - Register the parser in `cli.rs`
+- **Add new analytics:**
+  - Extend `src/analyzer.rs` with new stats functions
+  - Add CLI flags in `cli.rs`
+- **Add new TUI tabs:**
+  - Edit `src/ui/mod.rs` to add new analytics or visualizations
+- **Testing:**
+  - Add tests in module files (see `src/analyzer.rs`)
+  - Run `cargo test` for all modules
+- **CI/CD:**
+  - GitHub Actions automate build, test, changelog, and releases
+
+### 6. Performance Tips
+
+- Use release builds for all analytics
+- Filter or export only the data you need for large histories
+- Archive old history files if you notice slowdowns
+- Use a modern terminal and Nerd Font for best TUI experience
+
+### 7. FAQ & Troubleshooting
+
+- **TUI looks weird?** Use a Nerd Font and a modern terminal
+- **Installer fails?** Check for `sudo` and `cargo` in your PATH
+- **Shell not detected?** Use `--shell` to force the shell type
+- **Analytics slow?** Archive old history, use filters, or split history files
+- **Live tracking not working?** Ensure `contrib/heist_live_tracking.sh` is sourced in your shell config
+- **Tests fail?** Ensure all dependencies are installed, run `cargo clean && cargo test`
+
+### 8. Example Workflows (Beginner to God-Tier)
+
+- **Beginner:**
+  - Install and run TUI, explore tabs
+  - Use `heist --cli --top 10` to see most-used commands
+- **Intermediate:**
+  - Use filters, date ranges, and exports for custom analytics
+  - Enable live tracking for real-time stats
+- **Advanced:**
+  - Script Heist output with `jq`, `awk`, or other tools
+  - Audit for dangerous commands, analyze sessions
+- **God-Tier:**
+  - Extend Heist with custom analytics, parsers, or TUI tabs
+  - Automate workflows with CI/CD, contribute to the project
+  - Benchmark and tune for massive histories (1M+ entries)
 
 ---
 
