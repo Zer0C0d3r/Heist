@@ -79,6 +79,34 @@ uninstall() {
     exit 0
 }
 
+# After install, offer to set up live tracking
+setup_live_tracking() {
+    echo -e "${CYAN}Heist can track commands in real time using PROMPT_COMMAND (Bash/Zsh).${NC}"
+    echo -e "${YELLOW}This will append a snippet to your ~/.bashrc and/or ~/.zshrc to enable live tracking.${NC}"
+    echo -en "Enable live tracking? [Y/n]: "
+    read -r ans
+    if [[ "$ans" =~ ^[Nn] ]]; then
+        echo -e "${CYAN}Skipping live tracking setup.${NC}"
+        return
+    fi
+    SNIPPET_PATH="$(pwd)/contrib/heist_live_tracking.sh"
+    if [ ! -f "$SNIPPET_PATH" ]; then
+        echo -e "${RED}Live tracking snippet not found: $SNIPPET_PATH${NC}"
+        return
+    fi
+    for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
+        if [ -f "$rc" ]; then
+            if ! grep -q 'heist_live_tracking.sh' "$rc"; then
+                echo -e "\n# Heist live tracking\nsource $SNIPPET_PATH" >> "$rc"
+                echo -e "${GREEN}Appended live tracking snippet to $rc${NC}"
+            else
+                echo -e "${CYAN}Live tracking already set up in $rc${NC}"
+            fi
+        fi
+    done
+    echo -e "${GREEN}Live tracking enabled! Restart your shell to activate.${NC}"
+}
+
 # Install/Update
 install() {
     echo -e "${GREEN}Building Heist in release mode...${NC}"
@@ -95,6 +123,7 @@ install() {
     echo
     if command -v ${APP_NAME} >/dev/null 2>&1; then
         echo -e "${GREEN}Heist installed successfully! Run '${APP_NAME} --help' to get started.${NC}"
+        setup_live_tracking
     else
         echo -e "${RED}Installation failed. Please check your PATH and try again.${NC}"
     fi

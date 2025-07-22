@@ -44,19 +44,25 @@ pub fn detect_shell() -> ShellType {
 
 /// Parse shell history based on shell type and CLI args
 pub fn parse_history(shell: &ShellType, args: &CliArgs) -> Result<Vec<HistoryEntry>> {
-    match shell {
-        ShellType::Bash => parse_bash_history(args),
-        ShellType::Zsh => parse_zsh_history(args),
-        ShellType::Fish => parse_fish_history(args),
-        ShellType::Csh => parse_csh_history(args),
-        ShellType::Tcsh => parse_tcsh_history(args),
-        ShellType::Ksh => parse_ksh_history(args),
-        ShellType::Dash => parse_dash_history(args),
-        ShellType::Sh => parse_sh_history(args),
-        ShellType::Mksh => parse_mksh_history(args),
-        ShellType::Yash => parse_yash_history(args),
-        ShellType::Osh => parse_osh_history(args),
-    }
+    let mut entries = match shell {
+        ShellType::Bash => parse_bash_history(args)?,
+        ShellType::Zsh => parse_zsh_history(args)?,
+        ShellType::Fish => parse_fish_history(args)?,
+        ShellType::Csh => parse_csh_history(args)?,
+        ShellType::Tcsh => parse_tcsh_history(args)?,
+        ShellType::Ksh => parse_ksh_history(args)?,
+        ShellType::Dash => parse_dash_history(args)?,
+        ShellType::Sh => parse_sh_history(args)?,
+        ShellType::Mksh => parse_mksh_history(args)?,
+        ShellType::Yash => parse_yash_history(args)?,
+        ShellType::Osh => parse_osh_history(args)?,
+    };
+    // If live tracking file exists, merge it in (dedup by command+timestamp)
+    let mut live = parse_heist_live_history();
+    entries.append(&mut live);
+    entries.sort_by_key(|e| e.timestamp);
+    entries.dedup_by(|a, b| a.timestamp == b.timestamp && a.command == b.command);
+    Ok(entries)
 }
 
 /// Parse bash history file (~/.bash_history)
@@ -354,4 +360,31 @@ fn parse_osh_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
         });
     }
     Ok(entries)
+}
+
+/// Parse live-tracked history file (~/.heist_live_history)
+pub fn parse_heist_live_history() -> Vec<HistoryEntry> {
+    let mut entries = Vec::new();
+    let path = home_dir().map(|d| d.join(".heist_live_history"));
+    if let Some(path) = path {
+        if path.exists() {
+            if let Ok(file) = File::open(&path) {
+                let reader = BufReader::new(file);
+                for line in reader.lines().flatten() {
+                    // Format: 2024-06-09T12:34:56+0000|command
+                    if let Some((ts, cmd)) = line.split_once('|') {
+                        let timestamp = chrono::DateTime::parse_from_str(ts, "%Y-%m-%dT%H:%M:%S%z")
+                            .ok()
+                            .map(|dt| dt.with_timezone(&Local));
+                        entries.push(HistoryEntry {
+                            timestamp,
+                            command: cmd.trim().to_string(),
+                            session_id: None,
+                        });
+                    }
+                }
+            }
+        }
+    }
+    entries
 }

@@ -236,8 +236,8 @@ heist/
 - [x] **Alias suggestion engine** (Suggests aliases for long/frequent commands via CLI)
 - [x] **Dangerous command flagging** (Flags risky commands in history via CLI)
 - [x] **Per-directory and per-host stats** (CLI: --per-directory, --per-host)
-- [ ] **Time-of-day and heatmap analytics**
-- [ ] **Live tracking via PROMPT_COMMAND**
+- [x] **Time-of-day and heatmap analytics**
+- [x] **Live tracking via PROMPT_COMMAND** (real-time command logging for Bash/Zsh, see README)
 - [ ] **Vim/Emacs keybindings in TUI**
 - [ ] **Accessibility improvements**
 - [ ] **Better error messages and logging**
@@ -245,6 +245,37 @@ heist/
 - [ ] **Unit and integration tests for all modules**
 - [x] **CI/CD improvements and release automation** (Advanced GitHub Actions: build, test, changelog, and auto-release on tag)
 - [ ] **Better documentation and user guides**
+
+---
+
+## 🟢 Live Tracking via PROMPT_COMMAND
+
+Heist supports real-time command tracking for Bash and Zsh using PROMPT_COMMAND (or Zsh's `precmd`).
+
+### How it works
+
+- Each time you run a command, it is appended instantly to `~/.heist_live_history`.
+- This enables up-to-the-second analytics and session tracking, even before your shell history is flushed.
+- Heist automatically merges this live-tracked file with your main history for analytics.
+
+### Setup
+
+- Run the installer (`./install.sh`) and choose to enable live tracking when prompted.
+- This will add a snippet to your `~/.bashrc` and/or `~/.zshrc`:
+
+```sh
+source /path/to/Heist/contrib/heist_live_tracking.sh
+```
+
+- Restart your shell to activate live tracking.
+
+### Manual setup
+
+If you want to add it manually, append this to your `~/.bashrc` or `~/.zshrc`:
+
+```sh
+source /path/to/Heist/contrib/heist_live_tracking.sh
+```
 
 ---
 
