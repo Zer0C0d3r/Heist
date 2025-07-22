@@ -30,6 +30,32 @@ pub fn group_sessions<'a>(entries: &'a[&'a HistoryEntry], gap_minutes: i64) -> V
     sessions
 }
 
+/// Suggest aliases for long or frequently used commands
+pub fn suggest_aliases(history: &[HistoryEntry]) {
+    use std::collections::HashMap;
+    // Count full command lines (not just the first word)
+    let mut freq: HashMap<&str, usize> = HashMap::new();
+    for entry in history {
+        let cmd = entry.command.trim();
+        if cmd.len() > 15 { // Only consider long commands
+            *freq.entry(cmd).or_insert(0) += 1;
+        }
+    }
+    let mut freq_vec: Vec<_> = freq.into_iter().collect();
+    freq_vec.sort_by(|a, b| b.1.cmp(&a.1));
+    println!("\nAlias Suggestions (for long/frequent commands):");
+    let mut alias_num = 1;
+    for (cmd, count) in freq_vec.into_iter().take(10) {
+        // Suggest a short alias (a1, a2, ...)
+        let alias = format!("a{}", alias_num);
+        println!("alias {}='{}'  # used {} times", alias, cmd, count);
+        alias_num += 1;
+    }
+    if alias_num == 1 {
+        println!("No long or frequent commands found for alias suggestion.");
+    }
+}
+
 /// Analyze history and print stats in CLI mode
 /// Handles filtering, searching, session summary, and export
 pub fn analyze_history(history: &Vec<HistoryEntry>, args: &CliArgs) -> Result<()> {

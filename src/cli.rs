@@ -35,6 +35,10 @@ pub struct CliArgs {
     /// Print session-level stats
     #[arg(long)]
     pub session_summary: bool,
+
+    /// Suggest aliases for long or frequently used commands
+    #[arg(long)]
+    pub suggest_aliases: bool,
 }
 
 #[derive(ValueEnum, Debug, Clone)]

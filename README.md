@@ -231,7 +231,7 @@ heist/
 ## 📝 TODO (Long Term & Future)
 
 - [x] **Session detection improvements for all shells** (timestamp inference for plain-text shells, robust grouping for all supported shells)
-- [ ] **Alias suggestion engine**
+- [x] **Alias suggestion engine** (Suggests aliases for long/frequent commands via CLI)
 - [ ] **Dangerous command flagging**
 - [ ] **Time-of-day and heatmap analytics**
 - [ ] **Per-directory and per-host stats**
