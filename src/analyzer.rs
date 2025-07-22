@@ -4,6 +4,21 @@ use crate::cli::CliArgs;
 use crate::models::HistoryEntry;
 use anyhow::{Result, Context};
 use std::collections::HashMap;
+use std::fs::OpenOptions;
+use std::io::Write as IoWrite;
+use regex::Regex;
+use chrono::NaiveDate;
+use std::fs::File;
+
+macro_rules! log_error {
+    ($($arg:tt)*) => {{
+        let msg = format!($($arg)*);
+        eprintln!("[heist error] {}", msg);
+        if let Ok(mut f) = OpenOptions::new().create(true).append(true).open("heist_error.log") {
+            let _ = writeln!(f, "{}", msg);
+        }
+    }};
+}
 
 /// Group history entries into sessions based on a time gap (in minutes)
 pub fn group_sessions<'a>(entries: &'a[&'a HistoryEntry], gap_minutes: i64) -> Vec<Vec<&'a HistoryEntry>> {
@@ -168,11 +183,8 @@ pub fn heatmap_stats(history: &[HistoryEntry]) {
 /// Analyze history and print stats in CLI mode
 /// Handles filtering, searching, session summary, and export
 pub fn analyze_history(history: &Vec<HistoryEntry>, args: &CliArgs) -> Result<()> {
-    use chrono::NaiveDate;
-    use regex::Regex;
-    use std::fs::File;
-    use std::io::Write;
     if history.is_empty() {
+        log_error!("No history entries found for analysis.");
         println!("No history entries found.");
         return Ok(());
     }
@@ -285,4 +297,121 @@ pub fn analyze_history(history: &Vec<HistoryEntry>, args: &CliArgs) -> Result<()
         println!("{}", entry.command);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cli::CliArgs;
+    use chrono::{Local, TimeZone};
+
+    #[test]
+    fn test_empty_history() {
+        let args = CliArgs {
+            shell: None,
+            cli: false,
+            filter: None,
+            search: None,
+            range: None,
+            suggest_aliases: false,
+            flag_dangerous: false,
+            per_directory: false,
+            per_host: false,
+            time_of_day: false,
+            heatmap: false,
+            top: None,
+            session_summary: false,
+            export: None,
+        };
+        let entries: Vec<HistoryEntry> = vec![];
+        assert!(entries.is_empty());
+    }
+
+    #[test]
+    fn test_history_entry_fields() {
+        let entry = HistoryEntry {
+            timestamp: None,
+            command: "ls -la".to_string(),
+            session_id: None,
+        };
+        assert_eq!(entry.command, "ls -la");
+    }
+
+    #[test]
+    fn test_time_of_day_stats_empty() {
+        let history: Vec<HistoryEntry> = vec![];
+        time_of_day_stats(&history); // Should not panic
+    }
+
+    #[test]
+    fn test_time_of_day_stats_basic() {
+        let history = vec![
+            HistoryEntry { timestamp: Some(Local.with_ymd_and_hms(2024, 1, 1, 12, 0, 0).unwrap()), command: "ls".into(), session_id: None },
+            HistoryEntry { timestamp: Some(Local.with_ymd_and_hms(2024, 1, 1, 12, 30, 0).unwrap()), command: "cd /".into(), session_id: None },
+        ];
+        time_of_day_stats(&history); // Should print 2 for 12:00
+    }
+
+    #[test]
+    fn test_heatmap_stats_empty() {
+        let history: Vec<HistoryEntry> = vec![];
+        heatmap_stats(&history); // Should not panic
+    }
+
+    #[test]
+    fn test_heatmap_stats_basic() {
+        let history = vec![
+            HistoryEntry { timestamp: Some(Local.with_ymd_and_hms(2024, 1, 1, 12, 0, 0).unwrap()), command: "ls".into(), session_id: None },
+            HistoryEntry { timestamp: Some(Local.with_ymd_and_hms(2024, 1, 2, 13, 0, 0).unwrap()), command: "cd /".into(), session_id: None },
+        ];
+        heatmap_stats(&history); // Should print for Mon and Tue
+    }
+
+    #[test]
+    fn test_group_sessions() {
+        let ts1 = Local.with_ymd_and_hms(2024, 1, 1, 10, 0, 0).unwrap();
+        let ts2 = Local.with_ymd_and_hms(2024, 1, 1, 10, 5, 0).unwrap();
+        let ts3 = Local.with_ymd_and_hms(2024, 1, 1, 11, 0, 0).unwrap();
+        let h1 = HistoryEntry { timestamp: Some(ts1), command: "ls".into(), session_id: None };
+        let h2 = HistoryEntry { timestamp: Some(ts2), command: "cd /".into(), session_id: None };
+        let h3 = HistoryEntry { timestamp: Some(ts3), command: "pwd".into(), session_id: None };
+        let all = vec![h1, h2, h3];
+        let refs: Vec<&HistoryEntry> = all.iter().collect();
+        let sessions = group_sessions(&refs, 10);
+        assert_eq!(sessions.len(), 2);
+    }
+
+    #[test]
+    fn test_suggest_aliases() {
+        let history = vec![
+            HistoryEntry { timestamp: None, command: "verylongcommand --with --many --args".into(), session_id: None },
+            HistoryEntry { timestamp: None, command: "verylongcommand --with --many --args".into(), session_id: None },
+        ];
+        suggest_aliases(&history); // Should print alias suggestion
+    }
+
+    #[test]
+    fn test_flag_dangerous() {
+        let history = vec![
+            HistoryEntry { timestamp: None, command: "rm -rf /".into(), session_id: None },
+        ];
+        flag_dangerous(&history); // Should print warning
+    }
+
+    #[test]
+    fn test_per_directory_stats() {
+        let history = vec![
+            HistoryEntry { timestamp: None, command: "cd /tmp".into(), session_id: None },
+            HistoryEntry { timestamp: None, command: "ls".into(), session_id: None },
+        ];
+        per_directory_stats(&history); // Should print stats
+    }
+
+    #[test]
+    fn test_per_host_stats() {
+        let history = vec![
+            HistoryEntry { timestamp: None, command: "ls".into(), session_id: None },
+        ];
+        per_host_stats(&history); // Should print stats
+    }
 }

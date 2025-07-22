@@ -5,7 +5,8 @@ use crate::models::HistoryEntry;
 use anyhow::Result;
 use crossterm::{event, execute, terminal};
 use ratatui::{prelude::*, widgets::*};
-use std::io::{self};
+use std::fs::OpenOptions;
+use std::io::{self, Write as IoWrite};
 use std::time::Duration;
 use chrono::{DateTime, Local};
 use regex::Regex;
@@ -18,6 +19,20 @@ enum Tab {
     Search,
 }
 
+#[derive(Copy, Clone, PartialEq)]
+enum KeyMode {
+    Default,
+    Vim,
+    Emacs,
+}
+
+#[derive(Copy, Clone, PartialEq)]
+enum Theme {
+    Default,
+    HighContrast,
+    Colorblind,
+}
+
 const TAB_ICONS: [&str; 4] = [
     " Summary",      // Nerd Font: nf-md-view_dashboard
     " Commands",     // nf-fa-terminal
@@ -25,19 +40,40 @@ const TAB_ICONS: [&str; 4] = [
     " Search",       // nf-fa-search
 ];
 
+macro_rules! log_error {
+    ($($arg:tt)*) => {{
+        let msg = format!($($arg)*);
+        eprintln!("[heist error] {}", msg);
+        if let Ok(mut f) = OpenOptions::new().create(true).append(true).open("heist_error.log") {
+            let _ = writeln!(f, "{}", msg);
+        }
+    }};
+}
+
 pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
     let mut stdout = io::stdout();
-    terminal::enable_raw_mode()?;
+    if let Err(e) = terminal::enable_raw_mode() {
+        log_error!("Failed to enable raw mode: {}", e);
+        return Err(e.into());
+    }
     execute!(stdout, terminal::EnterAlternateScreen, event::EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
-    let mut terminal = Terminal::new(backend)?;
+    let mut terminal = match Terminal::new(backend) {
+        Ok(t) => t,
+        Err(e) => {
+            log_error!("Failed to create terminal: {}", e);
+            return Err(e.into());
+        }
+    };
 
     let mut selected: usize = 0;
     let total = history.len();
     let mut running = true;
     let mut tab = Tab::Summary;
+    let mut key_mode = KeyMode::Default;
+    let mut theme = Theme::Default;
     let tab_titles: Vec<String> = TAB_ICONS.iter().map(|s| s.to_string()).collect();
-    let help_text = "[←/→] Switch Tab  [↑/↓] Scroll  [Enter] Select  [q/Ctrl+C] Quit | [/] Search | [Esc] Back";
+    let mut help_text = String::from("[←/→] Switch Tab  [↑/↓] Scroll  [Enter] Select  [q/Ctrl+C] Quit | [/] Search | [Esc] Back | [F2] KeyMode | [F3] Theme");
 
     // --- Sessions grouping ---
     let mut sessions: Vec<(DateTime<Local>, DateTime<Local>, Vec<&HistoryEntry>)> = vec![];
@@ -91,7 +127,7 @@ pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
     let total_cmds = history.len();
 
     while running {
-        terminal.draw(|f| {
+        if let Err(e) = terminal.draw(|f| {
             let size = f.size();
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
@@ -234,22 +270,72 @@ pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
                     f.render_stateful_widget(list, results_area, &mut state);
                 },
             }
-            let help = Paragraph::new(if search_mode {"Type to search, [Esc] to exit search, [Enter] to select"} else {help_text})
-                .style(Style::default().fg(Color::Gray).add_modifier(Modifier::ITALIC));
-            f.render_widget(help, chunks[2]);
-        })?;
+            // Show key mode in help bar
+            let mode_str = match key_mode {
+                KeyMode::Default => "Default",
+                KeyMode::Vim => "Vim",
+                KeyMode::Emacs => "Emacs",
+            };
+            // Show theme in help bar
+            let theme_str = match theme {
+                Theme::Default => "Default",
+                Theme::HighContrast => "HighContrast",
+                Theme::Colorblind => "Colorblind",
+            };
+            let help_string = format!("{} | Mode: {} | Theme: {}", help_text, mode_str, theme_str);
+            let help: &str = if search_mode { "Type to search, [Esc] to exit search, [Enter] to select" } else { &help_string };
+            // Render help bar
+            let help_bar = Paragraph::new(help);
+            f.render_widget(help_bar, chunks[2]);
+        }) {
+            log_error!("TUI draw error: {}", e);
+        }
         // --- Input handling ---
         if event::poll(Duration::from_millis(100))? {
             match event::read()? {
                 event::Event::Key(key) => {
+                    if key.code == event::KeyCode::F(2) {
+                        key_mode = match key_mode {
+                            KeyMode::Default => KeyMode::Vim,
+                            KeyMode::Vim => KeyMode::Emacs,
+                            KeyMode::Emacs => KeyMode::Default,
+                        };
+                        continue;
+                    }
+                    if key.code == event::KeyCode::F(3) {
+                        theme = match theme {
+                            Theme::Default => Theme::HighContrast,
+                            Theme::HighContrast => Theme::Colorblind,
+                            Theme::Colorblind => Theme::Default,
+                        };
+                        continue;
+                    }
                     if search_mode {
-                        match key.code {
-                            event::KeyCode::Esc => { search_mode = false; search_query.clear(); search_results.clear(); },
-                            event::KeyCode::Char(c) => { search_query.push(c); },
-                            event::KeyCode::Backspace => { search_query.pop(); },
-                            event::KeyCode::Down => { if search_selected + 1 < search_results.len() { search_selected += 1; } },
-                            event::KeyCode::Up => { if search_selected > 0 { search_selected -= 1; } },
-                            _ => {}
+                        match key_mode {
+                            KeyMode::Vim => match key.code {
+                                event::KeyCode::Char('j') => { if search_selected + 1 < search_results.len() { search_selected += 1; } },
+                                event::KeyCode::Char('k') => { if search_selected > 0 { search_selected -= 1; } },
+                                event::KeyCode::Esc => { search_mode = false; search_query.clear(); search_results.clear(); },
+                                event::KeyCode::Char(c) => { search_query.push(c); },
+                                event::KeyCode::Backspace => { search_query.pop(); },
+                                _ => {}
+                            },
+                            KeyMode::Emacs => match key.code {
+                                event::KeyCode::Char('n') if key.modifiers.contains(event::KeyModifiers::CONTROL) => { if search_selected + 1 < search_results.len() { search_selected += 1; } },
+                                event::KeyCode::Char('p') if key.modifiers.contains(event::KeyModifiers::CONTROL) => { if search_selected > 0 { search_selected -= 1; } },
+                                event::KeyCode::Esc => { search_mode = false; search_query.clear(); search_results.clear(); },
+                                event::KeyCode::Char(c) => { search_query.push(c); },
+                                event::KeyCode::Backspace => { search_query.pop(); },
+                                _ => {}
+                            },
+                            _ => match key.code {
+                                event::KeyCode::Esc => { search_mode = false; search_query.clear(); search_results.clear(); },
+                                event::KeyCode::Char(c) => { search_query.push(c); },
+                                event::KeyCode::Backspace => { search_query.pop(); },
+                                event::KeyCode::Down => { if search_selected + 1 < search_results.len() { search_selected += 1; } },
+                                event::KeyCode::Up => { if search_selected > 0 { search_selected -= 1; } },
+                                _ => {}
+                            }
                         }
                         // Update search results
                         search_results = if !search_query.is_empty() {
@@ -262,57 +348,135 @@ pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
                         if search_selected >= search_results.len() { search_selected = 0; }
                         continue;
                     }
-                    match key.code {
-                        event::KeyCode::Char('/') => { search_mode = true; search_query.clear(); search_results.clear(); search_selected = 0; },
-                        event::KeyCode::Char('q') | event::KeyCode::Esc => running = false,
-                        event::KeyCode::Char('c') if key.modifiers.contains(event::KeyModifiers::CONTROL) => running = false,
-                        event::KeyCode::Down => {
-                            match tab {
-                                Tab::PerCommand => if selected + 1 < total { selected += 1; },
-                                Tab::Sessions => if session_selected + 1 < sessions.len() { session_selected += 1; session_cmd_selected = 0; },
-                                Tab::Search => if search_selected + 1 < search_results.len() { search_selected += 1; },
-                                _ => {}
-                            }
+                    match key_mode {
+                        KeyMode::Vim => match key.code {
+                            event::KeyCode::Char('h') => {
+                                tab = match tab {
+                                    Tab::Summary => Tab::Search,
+                                    Tab::PerCommand => Tab::Summary,
+                                    Tab::Sessions => Tab::PerCommand,
+                                    Tab::Search => Tab::Sessions,
+                                };
+                                selected = 0; session_selected = 0; session_cmd_selected = 0; search_selected = 0;
+                            },
+                            event::KeyCode::Char('l') => {
+                                tab = match tab {
+                                    Tab::Summary => Tab::PerCommand,
+                                    Tab::PerCommand => Tab::Sessions,
+                                    Tab::Sessions => Tab::Search,
+                                    Tab::Search => Tab::Summary,
+                                };
+                                selected = 0; session_selected = 0; session_cmd_selected = 0; search_selected = 0;
+                            },
+                            event::KeyCode::Char('j') => {
+                                match tab {
+                                    Tab::PerCommand => if selected + 1 < total { selected += 1; },
+                                    Tab::Sessions => if session_selected + 1 < sessions.len() { session_selected += 1; session_cmd_selected = 0; },
+                                    Tab::Search => if search_selected + 1 < search_results.len() { search_selected += 1; },
+                                    _ => {}
+                                }
+                            },
+                            event::KeyCode::Char('k') => {
+                                match tab {
+                                    Tab::PerCommand => if selected > 0 { selected -= 1; },
+                                    Tab::Sessions => if session_selected > 0 { session_selected -= 1; session_cmd_selected = 0; },
+                                    Tab::Search => if search_selected > 0 { search_selected -= 1; },
+                                    _ => {}
+                                }
+                            },
+                            event::KeyCode::Char('q') | event::KeyCode::Esc => running = false,
+                            event::KeyCode::Char('c') if key.modifiers.contains(event::KeyModifiers::CONTROL) => running = false,
+                            event::KeyCode::Enter => {
+                                if tab == Tab::Sessions && !sessions.is_empty() && !sessions[session_selected].2.is_empty() {
+                                    session_cmd_selected = (session_cmd_selected + 1) % sessions[session_selected].2.len();
+                                }
+                            },
+                            _ => {}
                         },
-                        event::KeyCode::Up => {
-                            match tab {
-                                Tab::PerCommand => if selected > 0 { selected -= 1; },
-                                Tab::Sessions => if session_selected > 0 { session_selected -= 1; session_cmd_selected = 0; },
-                                Tab::Search => if search_selected > 0 { search_selected -= 1; },
-                                _ => {}
-                            }
+                        KeyMode::Emacs => match key.code {
+                            event::KeyCode::Char('a') if key.modifiers.contains(event::KeyModifiers::CONTROL) => { selected = 0; },
+                            event::KeyCode::Char('e') if key.modifiers.contains(event::KeyModifiers::CONTROL) => { selected = total.saturating_sub(1); },
+                            event::KeyCode::Char('n') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                                match tab {
+                                    Tab::PerCommand => if selected + 1 < total { selected += 1; },
+                                    Tab::Sessions => if session_selected + 1 < sessions.len() { session_selected += 1; session_cmd_selected = 0; },
+                                    Tab::Search => if search_selected + 1 < search_results.len() { search_selected += 1; },
+                                    _ => {}
+                                }
+                            },
+                            event::KeyCode::Char('p') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                                match tab {
+                                    Tab::PerCommand => if selected > 0 { selected -= 1; },
+                                    Tab::Sessions => if session_selected > 0 { session_selected -= 1; session_cmd_selected = 0; },
+                                    Tab::Search => if search_selected > 0 { search_selected -= 1; },
+                                    _ => {}
+                                }
+                            },
+                            event::KeyCode::Char('q') | event::KeyCode::Esc => running = false,
+                            event::KeyCode::Char('c') if key.modifiers.contains(event::KeyModifiers::CONTROL) => running = false,
+                            event::KeyCode::Enter => {
+                                if tab == Tab::Sessions && !sessions.is_empty() && !sessions[session_selected].2.is_empty() {
+                                    session_cmd_selected = (session_cmd_selected + 1) % sessions[session_selected].2.len();
+                                }
+                            },
+                            _ => {}
                         },
-                        event::KeyCode::Right => {
-                            tab = match tab {
-                                Tab::Summary => Tab::PerCommand,
-                                Tab::PerCommand => Tab::Sessions,
-                                Tab::Sessions => Tab::Search,
-                                Tab::Search => Tab::Summary,
-                            };
-                            selected = 0; session_selected = 0; session_cmd_selected = 0; search_selected = 0;
-                        },
-                        event::KeyCode::Left => {
-                            tab = match tab {
-                                Tab::Summary => Tab::Search,
-                                Tab::PerCommand => Tab::Summary,
-                                Tab::Sessions => Tab::PerCommand,
-                                Tab::Search => Tab::Sessions,
-                            };
-                            selected = 0; session_selected = 0; session_cmd_selected = 0; search_selected = 0;
-                        },
-                        event::KeyCode::Enter => {
-                            if tab == Tab::Sessions && !sessions.is_empty() && !sessions[session_selected].2.is_empty() {
-                                session_cmd_selected = (session_cmd_selected + 1) % sessions[session_selected].2.len();
-                            }
-                        },
-                        _ => {}
+                        _ => match key.code {
+                            event::KeyCode::Char('/') => { search_mode = true; search_query.clear(); search_results.clear(); search_selected = 0; },
+                            event::KeyCode::Char('q') | event::KeyCode::Esc => running = false,
+                            event::KeyCode::Char('c') if key.modifiers.contains(event::KeyModifiers::CONTROL) => running = false,
+                            event::KeyCode::Down => {
+                                match tab {
+                                    Tab::PerCommand => if selected + 1 < total { selected += 1; },
+                                    Tab::Sessions => if session_selected + 1 < sessions.len() { session_selected += 1; session_cmd_selected = 0; },
+                                    Tab::Search => if search_selected + 1 < search_results.len() { search_selected += 1; },
+                                    _ => {}
+                                }
+                            },
+                            event::KeyCode::Up => {
+                                match tab {
+                                    Tab::PerCommand => if selected > 0 { selected -= 1; },
+                                    Tab::Sessions => if session_selected > 0 { session_selected -= 1; session_cmd_selected = 0; },
+                                    Tab::Search => if search_selected > 0 { search_selected -= 1; },
+                                    _ => {}
+                                }
+                            },
+                            event::KeyCode::Right => {
+                                tab = match tab {
+                                    Tab::Summary => Tab::PerCommand,
+                                    Tab::PerCommand => Tab::Sessions,
+                                    Tab::Sessions => Tab::Search,
+                                    Tab::Search => Tab::Summary,
+                                };
+                                selected = 0; session_selected = 0; session_cmd_selected = 0; search_selected = 0;
+                            },
+                            event::KeyCode::Left => {
+                                tab = match tab {
+                                    Tab::Summary => Tab::Search,
+                                    Tab::PerCommand => Tab::Summary,
+                                    Tab::Sessions => Tab::PerCommand,
+                                    Tab::Search => Tab::Sessions,
+                                };
+                                selected = 0; session_selected = 0; session_cmd_selected = 0; search_selected = 0;
+                            },
+                            event::KeyCode::Enter => {
+                                if tab == Tab::Sessions && !sessions.is_empty() && !sessions[session_selected].2.is_empty() {
+                                    session_cmd_selected = (session_cmd_selected + 1) % sessions[session_selected].2.len();
+                                }
+                            },
+                            _ => {}
+                        }
                     }
                 },
                 _ => {}
             }
         }
     }
-    terminal::disable_raw_mode()?;
-    execute!(terminal.backend_mut(), terminal::LeaveAlternateScreen, event::DisableMouseCapture)?;
+    if let Err(e) = terminal::disable_raw_mode() {
+        log_error!("Failed to disable raw mode: {}", e);
+    }
+    if let Err(e) = execute!(terminal.backend_mut(), terminal::LeaveAlternateScreen, event::DisableMouseCapture) {
+        log_error!("Failed to leave alternate screen: {}", e);
+    }
     Ok(())
 }

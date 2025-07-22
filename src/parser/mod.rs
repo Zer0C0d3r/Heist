@@ -10,6 +10,18 @@ use dirs::home_dir;
 use chrono::{DateTime, Local, TimeZone};
 use regex::Regex;
 use std::fs;
+use std::fs::OpenOptions;
+use std::io::Write as IoWrite;
+
+macro_rules! log_error {
+    ($($arg:tt)*) => {{
+        let msg = format!($($arg)*);
+        eprintln!("[heist error] {}", msg);
+        if let Ok(mut f) = OpenOptions::new().create(true).append(true).open("heist_error.log") {
+            let _ = writeln!(f, "{}", msg);
+        }
+    }};
+}
 
 /// Detect the user's shell from the SHELL environment variable
 pub fn detect_shell() -> ShellType {
@@ -62,6 +74,9 @@ pub fn parse_history(shell: &ShellType, args: &CliArgs) -> Result<Vec<HistoryEnt
     entries.append(&mut live);
     entries.sort_by_key(|e| e.timestamp);
     entries.dedup_by(|a, b| a.timestamp == b.timestamp && a.command == b.command);
+    if entries.is_empty() {
+        log_error!("No entries parsed for shell {:?}", shell);
+    }
     Ok(entries)
 }
 
