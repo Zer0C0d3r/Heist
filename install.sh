@@ -7,6 +7,10 @@ INSTALL_DIR="/usr/local/bin"
 CARGO_BIN="${HOME}/.cargo/bin/${APP_NAME}"
 VERSION="v1.0.0"
 
+show_version() {
+    echo -e "${CYAN}Heist version: ${YELLOW}${VERSION}${NC}"
+}
+
 # Colors
 if [ ! -t 1 ]; then
     GREEN=''
@@ -48,7 +52,7 @@ spinner() {
 
 # Banner
 banner() {
-    $CLEAR
+    clear
     echo -e "${MAGENTA}${BOLD}"
     cat <<'EOF'
 ██╗  ██╗███████╗██╗███████╗████████╗
@@ -58,7 +62,7 @@ banner() {
 ██║  ██║███████╗██║███████║   ██║   
 ╚═╝  ╚═╝╚══════╝╚═╝╚══════╝   ╚═╝   
 EOF
-    echo -e "${YELLOW}  Heist  ${CYAN}${VERSION}${NC}"
+    show_version
     echo -e "${CYAN}Heist Interactive Installer${NC}\n"
 }
 

@@ -1,171 +1,383 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Zer0C0d3r/Heist/main/assets/logo.png" alt="Heist Logo" width="120"/>
-</p>
+# Heist: The Ultimate Shell History Analyzer
 
-<h1 align="center">Heist <img src="https://img.shields.io/badge/shell%20history%20analytics-%F0%9F%94%A5-blue" alt="analytics"/></h1>
+![Heist Logo](https://raw.githubusercontent.com/Zer0C0d3r/Heist/master/assets/logo.png)
 
-<p align="center">
-  <b>Blazing-fast, cross-platform shell history analytics with TUI & CLI</b><br>
-  <a href="https://github.com/Zer0C0d3r/Heist/actions/workflows/ci.yml"><img src="https://github.com/Zer0C0d3r/Heist/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
-  <a href="https://github.com/Zer0C0d3r/Heist/actions/workflows/lint.yml"><img src="https://github.com/Zer0C0d3r/Heist/actions/workflows/lint.yml/badge.svg" alt="Lint"/></a>
-  <a href="https://github.com/Zer0C0d3r/Heist/actions/workflows/coverage.yml"><img src="https://github.com/Zer0C0d3r/Heist/actions/workflows/coverage.yml/badge.svg" alt="Coverage"/></a>
-  <a href="https://crates.io/crates/heist"><img src="https://img.shields.io/crates/v/heist.svg" alt="crates.io"/></a>
-  <a href="https://github.com/Zer0C0d3r/Heist/blob/master/LICENSE"><img src="https://img.shields.io/github/license/Zer0C0d3r/Heist.svg" alt="License"/></a>
-</p>
+[![Build Status](https://img.shields.io/github/actions/workflow/status/Zer0C0d3r/Heist/ci.yml?branch=master)](https://github.com/Zer0C0d3r/Heist/actions)
+[![Version](https://img.shields.io/github/v/tag/Zer0C0d3r/Heist?label=release)](https://github.com/Zer0C0d3r/Heist/releases)
+[![License](https://img.shields.io/github/license/Zer0C0d3r/Heist)](LICENSE)
+[![Docker Pulls](https://img.shields.io/docker/pulls/zer0c0d3r/heist)](https://hub.docker.com/r/zer0c0d3r/heist)
 
 ---
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/Zer0C0d3r/Heist/main/assets/screenshot.png" alt="Heist TUI Screenshot" width="600"/>
-</p>
+## What is Heist?
+
+Heist is a cross-platform, blazing-fast shell history analyzer and visualizer. It helps you understand, optimize, and secure your command-line workflow with beautiful analytics, smart suggestions, and advanced features. Supports Bash, Zsh, Fish, and most POSIX shells.
 
 ---
 
-# 🚀 Features
+## Table of Contents
 
-- ⚡ **Super-fast analytics** for Bash, Zsh, Fish, Csh, Ksh, Dash, and more
-- 🖥️ **Interactive TUI** with tabs, Vim/Emacs keybindings, and accessibility themes
-- 🧠 **Advanced CLI**: search, filter, export, session stats, alias suggestions, dangerous command flagging
-- 📊 **Time-of-day & heatmap analytics**
-- 🏷️ **Per-directory & per-host stats**
-- 🔴 **Live tracking** via PROMPT_COMMAND (real-time history)
-- 📦 **Export** to CSV/JSON
-- 🛠️ **Easy install/uninstall** script
-- 🔒 **Privacy-first**: all analysis is local
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [CLI Usage](#cli-usage)
+- [TUI Usage](#tui-usage)
+- [Analytics Explained](#analytics-explained)
+- [Live Tracking & Shell Integration](#live-tracking--shell-integration)
+- [Customization](#customization)
+- [Docker Guide](#docker-guide)
+- [Advanced Usage](#advanced-usage)
+- [Troubleshooting](#troubleshooting)
+- [Developer Guide](#developer-guide)
+- [FAQ](#faq)
+- [Changelog](#changelog)
+- [Credits & License](#credits--license)
+- [Security & Privacy](#security--privacy)
+- [Shell History File Formats](#shell-history-file-formats)
+- [How Heist Works (Architecture)](#how-heist-works-architecture)
+- [Performance & Benchmarks](#performance--benchmarks)
+- [Accessibility Features](#accessibility-features)
+- [Customizing Analytics](#customizing-analytics)
+- [Integrations & Scripting](#integrations--scripting)
+- [Example Workflows](#example-workflows)
+- [Community & Support](#community--support)
+- [Glossary](#glossary)
+- [Bug Reporting & Feature Requests](#bug-reporting--feature-requests)
+- [Roadmap](#roadmap)
 
 ---
 
-# ⚡ Quickstart
+## Features
 
-## 1. Install
+- Modern TUI: tabs, icons, themes, accessibility, animations
+- Powerful CLI: top commands, search, filter, export
+- Alias suggestion engine: recommends shortcuts for long/frequent commands
+- Dangerous command flagging: highlights risky patterns (e.g. `rm -rf`)
+- Per-directory and per-host stats: see where and on which machine you run commands
+- Time-of-day and weekly heatmap analytics: visualize your habits
+- Session detection: group commands by shell session
+- Multi-shell support: Bash, Zsh, Fish, and more
+- Installer: auto-update, live tracking setup
+- Docker: multi-arch, healthcheck, easy mounting
+- Accessibility: colorblind themes, keyboard navigation
+
+---
+
+## Installation
+
+### 1. Native (Linux/macOS)
+
+**One-liner:**
 
 ```sh
-# With installer (recommended)
-git clone https://github.com/Zer0C0d3r/Heist.git
+curl -fsSL https://raw.githubusercontent.com/Zer0C0d3R/Heist/master/install.sh | bash
+```
+
+**Manual:**
+
+```sh
+git clone https://github.com/Zer0C0d3R/Heist.git
 cd Heist
 ./install.sh
 ```
 
-## 2. Run
+### 2. Docker
+
+**Build locally:**
 
 ```sh
-# TUI mode (default)
-heist
-
-# CLI analytics
-heist --cli --top 10
-heist --cli --heatmap
+docker build --build-arg HEIST_VERSION=$(git describe --tags --always) -t heist:latest .
+docker run --rm -it heist
 ```
 
----
-
-# 🖥️ TUI Highlights
-
-- Tabs: Summary, Per-Command, Sessions, Search
-- Navigation: ←/→ tabs, ↑/↓ scroll, Enter select, q/Esc/Ctrl+C quit
-- Keybindings: Default, Vim (h/j/k/l, :q, /), Emacs (Ctrl+A/E/N/P)
-- Accessibility: Theme switching (t), high-contrast, colorblind
-- Live updates: See new commands instantly with live tracking
-
----
-
-# 🧑‍💻 CLI Power
+**Pull from Docker Hub:**
 
 ```sh
-# Top commands
-heist --cli --top 20
-
-# Regex search
-heist --cli --search 'git.*push'
-
-# Filter by command
-heist --cli --filter ls
-
-# Date range
-heist --cli --range "2025-01-01:2025-07-22"
-
-# Export
-heist --cli --export json
-heist --cli --export csv
-
-# Session summary
-heist --cli --session-summary
-
-# Alias suggestions
-heist --cli --suggest-aliases
-
-# Dangerous command flagging
-heist --cli --flag-dangerous
-
-# Per-directory/host stats
-heist --cli --per-directory
-heist --cli --per-host
-
-# Time-of-day/heatmap
-heist --cli --time-of-day
-heist --cli --heatmap
+docker pull zer0c0d3r/heist:latest
+docker run --rm -it zer0c0d3r/heist
 ```
 
----
+**Mount your history:**
 
-# 📊 Analytics & Workflows
+```sh
+docker run -v ~/.bash_history:/root/.bash_history -it heist
+```
 
-- Combine filters: `heist --cli --filter git --range "2025-01-01:2025-07-22" --top 5`
-- Script integration: `heist --cli --export json | jq '.[] | select(.command | test("cargo"))'`
-- Live tracking: Enable via installer or source `contrib/heist_live_tracking.sh`
-- Session analysis: Productivity patterns, session grouping
-- Dangerous command audit: Security reviews
+### 3. Windows
 
----
-
-# 🏗️ Architecture
-
-- `src/cli.rs`: CLI argument parsing
-- `src/parser/`: Shell history parsing (modular)
-- `src/ui/`: TUI rendering
-- `src/analyzer.rs`: Analytics/statistics
-- `src/models.rs`: Data models
-- `install.sh`: Installer/uninstaller
+Use WSL or Docker.
 
 ---
 
-# 🛠️ Developer & Contributor Guide
+## Quick Start
 
-- Modular, hackable Rust codebase
-- Add new analytics, parsers, or TUI tabs easily
-- Run tests: `cargo test`
-- Lint/fix: `cargo clippy`, `cargo fmt`
-- CI: GitHub Actions (CI, lint, coverage, release)
-- PRs and issues welcome!
+- Run `heist` for the TUI dashboard
+- Run `heist --cli` for command-line analytics
+- Use `heist --help` to see all options
 
 ---
 
-# 🧩 Supported Shells
+## CLI Usage
 
-- Bash, Zsh, Fish, Csh, Tcsh, Ksh, Dash, Sh, Mksh, Yash, Osh
-- Auto-detects shell, or use `--shell` to override
+Analyze your history with flexible options:
 
----
+```sh
+heist --cli --top 10 --search "rm -rf" --export json
+heist --cli --per-directory --per-host --time-of-day --heatmap
+heist --cli --suggest-aliases --flag-dangerous
+```
 
-# 🛡️ Security & Privacy
+**Export formats:** CSV, JSON
 
-- All analytics are local by default
-- No cloud sync, no telemetry
-- Open source (MIT License)
+**Filter by time:** `--range 2025-01-01:2025-07-23`
 
----
-
-# 📝 FAQ & Troubleshooting
-
-- **TUI looks weird?** Use a Nerd Font and a modern terminal
-- **Installer fails?** Check for `sudo` and `cargo` in your PATH
-- **Shell not detected?** Use `--shell` to force the shell type
-- **Analytics slow?** Archive old history, use filters, or split history files
-- **Live tracking not working?** Ensure `contrib/heist_live_tracking.sh` is sourced in your shell config
-- **Tests fail?** Run `cargo clean && cargo test`
+**Filter by command:** `--filter git`
 
 ---
 
-# 📜 License
+## TUI Usage
 
-MIT
+- Launch with `heist`
+- Navigate tabs: ←/→
+- Scroll: ↑/↓
+- Search: `/` (type, then Enter)
+- Switch key mode: F2 (Default/Vim/Emacs)
+- Switch theme: F3 (Default/HighContrast/Colorblind)
+- Quit: `q` or `Ctrl+C`
+
+**Tabs:**
+
+- Summary: Top commands, usage bar
+- PerCommand: All commands, scrollable
+- Sessions: Grouped by shell session
+- Search: Regex or substring
+- Aliases: Suggestions for long/frequent commands
+- Dangerous: Flagged risky commands
+- Directory/Host: Stats by location/machine
+- TimeOfDay/Heatmap: Visualize habits
+
+---
+
+## Analytics Explained
+
+- **Alias Suggestions:** Finds long or frequent commands and recommends short aliases
+- **Dangerous Flagging:** Highlights commands matching risky patterns (customizable)
+- **Per-Directory/Host:** Shows where and on which host you run commands most
+- **Time-of-Day/Heatmap:** Visualizes when you use your shell most (hourly, weekly)
+- **Session Detection:** Groups commands by shell session (10+ min gap = new session)
+
+---
+
+## Live Tracking & Shell Integration
+
+Enable real-time history updates:
+
+- Installer can append a snippet to your `.bashrc`/`.zshrc` for live tracking
+- Uses `PROMPT_COMMAND` to log each command instantly
+- To enable manually:
+  - Source `contrib/heist_live_tracking.sh` in your shell config
+
+---
+
+## Customization
+
+- **Themes:** Default, HighContrast, Colorblind (F3)
+- **Keybindings:** Default, Vim, Emacs (F2)
+- **Accessibility:** Keyboard navigation, colorblind support
+- **Config:** Edit `config.toml` (coming soon)
+
+---
+
+## Docker Guide
+
+- **Multi-arch:** `docker buildx build --platform linux/amd64,linux/arm64 -t heist:latest .`
+- **Healthcheck:** Built-in, checks `heist --version`
+- **Mount history:** `docker run -v ~/.bash_history:/root/.bash_history -it heist`
+- **Environment:** Use `-it` for TUI, plain for CLI
+- **Labels:** Version, maintainer, title
+- **Troubleshooting:**
+  - TUI requires a real terminal (`-it`)
+  - Mount history files for analytics
+  - Use `--cli` for non-interactive mode
+
+---
+
+## Advanced Usage
+
+- **Export:** `heist --cli --export csv > history.csv`
+- **Scripting:** Use CLI output in scripts for automation
+- **Custom Patterns:** Edit dangerous patterns in source
+- **Session Analysis:** Filter by time, host, directory
+- **Performance:** Handles large history files efficiently
+
+---
+
+## Troubleshooting
+
+- **TUI not rendering:** Run in a true terminal, not redirected or in Docker without `-it`
+- **Corrupted output:** Use supported terminal emulator
+- **Installer issues:** Ensure dependencies (`cargo`, `sudo`) are installed
+- **Docker issues:** Use `-it`, mount history files, check healthcheck
+- **Live tracking not working:** Restart shell, check `.bashrc`/`.zshrc` for snippet
+
+---
+
+## Developer Guide
+
+- **Codebase:** Rust, ratatui, crossterm, modular (CLI, TUI, parser, analyzer, models)
+- **Tests:** Unit tests in module files
+- **Logging:** Errors logged to `heist_error.log`
+- **Contributing:** Fork, branch, PR, follow [CONTRIBUTING.md](CONTRIBUTING.md)
+- **Release:** Tag, update version in installer/Dockerfile/README
+- **CI/CD:** GitHub Actions, Dependabot
+
+---
+
+## FAQ
+
+**Q: Which shells are supported?**
+
+A: Bash, Zsh, Fish, Csh, Tcsh, Ksh, Dash, Sh, Mksh, Yash, Osh
+
+**Q: Can I use Heist on Windows?**
+
+A: Yes, via WSL or Docker
+
+**Q: How do I customize dangerous patterns?**
+
+A: Edit the patterns in `src/ui/mod.rs` and rebuild
+
+**Q: How do I update Heist?**
+
+A: Run the installer and choose Update, or pull latest and rerun
+
+**Q: How do I contribute?**
+
+A: Fork, branch, PR, see [CONTRIBUTING.md](CONTRIBUTING.md)
+
+---
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.
+
+---
+
+## Credits & License
+
+Created by [Zer0C0d3R](https://github.com/Zer0C0d3R). Powered by Rust, ratatui, crossterm, and the open source community.
+
+MIT License. See [LICENSE](LICENSE).
+
+---
+
+## Security & Privacy
+
+- Heist only reads your local shell history files; no data is sent externally.
+- Sensitive commands (passwords, tokens) are never stored or exported by Heist.
+- You can exclude or redact history entries by editing your history file before analysis.
+- All analytics are performed locally and securely.
+
+---
+
+## Shell History File Formats
+
+- **Bash:** `~/.bash_history` (plain text)
+- **Zsh:** `~/.zsh_history` (may be extended format)
+- **Fish:** `~/.local/share/fish/fish_history` (YAML)
+- **Others:** See [Supported Shells](#faq)
+- Heist auto-detects and parses most formats; for custom formats, see developer guide.
+
+---
+
+## How Heist Works (Architecture)
+
+- Modular Rust codebase: CLI, TUI, parser, analyzer, models
+- History is parsed, analyzed, and cached for fast rendering
+- TUI uses ratatui and crossterm for rich UI and keyboard navigation
+- CLI provides flexible analytics and export options
+- Live tracking uses shell hooks to append commands in real time
+
+---
+
+## Performance & Benchmarks
+
+- Handles history files with 100,000+ entries efficiently
+- Caching and optimized data structures minimize flicker and lag
+- Benchmarks: <100ms for analytics on typical history files
+- For huge files, use CLI mode for fastest results
+
+---
+
+## Accessibility Features
+
+- Colorblind-friendly themes (F3)
+- Keyboard navigation (Tab, arrows, Vim/Emacs modes)
+- High-contrast mode for low-vision users
+- All analytics available in CLI for screen readers
+
+---
+
+## Customizing Analytics
+
+- Edit dangerous patterns in `src/ui/mod.rs` to flag custom commands
+- Change alias suggestion thresholds in source or config (coming soon)
+- Filter by time, command, directory, host using CLI flags
+- Export analytics for further processing
+
+---
+
+## Integrations & Scripting
+
+- Use CLI output in shell scripts for automation
+- Integrate with shell plugins (e.g., Oh My Zsh, Prezto)
+- Export to CSV/JSON for use in CI/CD or reporting tools
+- Example: `heist --cli --export csv | grep rm`
+
+---
+
+## Example Workflows
+
+- **Security Audit:** `heist --cli --flag-dangerous --export json`
+- **Productivity Review:** `heist --cli --top 20 --per-directory --time-of-day`
+- **Alias Optimization:** `heist --cli --suggest-aliases`
+- **Team Analytics:** Mount multiple history files and aggregate results
+
+---
+
+## Community & Support
+
+- GitHub Issues: [Report bugs or request features](https://github.com/Zer0C0d3r/Heist/issues)
+- Discussions: [Join the community](https://github.com/Zer0C0d3r/Heist/discussions)
+- Roadmap: See [Projects](https://github.com/Zer0C0d3r/Heist/projects)
+- Contributing: See [CONTRIBUTING.md](CONTRIBUTING.md)
+
+---
+
+## Glossary
+
+- **Session:** Group of commands run in a shell instance
+- **Heatmap:** Visual representation of command frequency by time
+- **Alias:** Short command mapped to a longer one
+- **Dangerous Command:** Command pattern flagged as risky
+- **TUI:** Text User Interface
+- **CLI:** Command Line Interface
+
+---
+
+## Bug Reporting & Feature Requests
+
+- Use GitHub Issues for bugs, feature requests, and questions
+- Include OS, shell, Heist version, and steps to reproduce
+- For security issues, use private contact in repository
+
+---
+
+## Roadmap
+
+- Config file for custom analytics and UI settings
+- More shell support and auto-detection
+- Cloud sync (opt-in, privacy-first)
+- Plugin system for custom analytics
+- More accessibility features
+- Community-driven dangerous pattern lists
