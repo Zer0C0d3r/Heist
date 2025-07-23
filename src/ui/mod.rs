@@ -7,6 +7,8 @@ use crossterm::{event, execute, terminal};
 use ratatui::{prelude::*, widgets::*};
 use std::fs::OpenOptions;
 use std::io::{self, Write as IoWrite};
+use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time::Duration;
 use chrono::{DateTime, Local};
 use regex::Regex;
@@ -17,6 +19,12 @@ enum Tab {
     PerCommand,
     Sessions,
     Search,
+    Aliases,
+    Dangerous,
+    Directory,
+    Host,
+    TimeOfDay,
+    Heatmap,
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -33,11 +41,17 @@ enum Theme {
     Colorblind,
 }
 
-const TAB_ICONS: [&str; 4] = [
-    " Summary",      // Nerd Font: nf-md-view_dashboard
-    " Commands",     // nf-fa-terminal
-    " Sessions",     // nf-md-calendar_clock
-    " Search",       // nf-fa-search
+const TAB_ICONS: [&str; 10] = [
+    " Summary",      // Dashboard
+    " Commands",     // Terminal
+    " Sessions",     // Calendar
+    " Search",       // Search
+    " Aliases",      // Tag
+    " Dangerous",    // Warning
+    " Directory",    // Folder
+    " Host",         // Server
+    " TimeOfDay",    // Clock
+    " Heatmap",      // Chart
 ];
 
 macro_rules! log_error {
@@ -51,6 +65,24 @@ macro_rules! log_error {
 }
 
 pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
+    // Replace get_history_path and load_history_from_file with correct parser logic
+    let shell = crate::parser::detect_shell();
+    let args = _args.clone();
+    let history_data = Arc::new(Mutex::new(history.clone()));
+    let history_data_clone = Arc::clone(&history_data);
+    thread::spawn(move || {
+        loop {
+            let mut new_history = match crate::parser::parse_history(&shell, &args) {
+                Ok(h) => h,
+                Err(_) => Vec::new(),
+            };
+            let live_entries = crate::parser::parse_heist_live_history();
+            new_history.extend(live_entries);
+            let mut data = history_data_clone.lock().unwrap();
+            *data = new_history;
+            std::thread::sleep(Duration::from_secs(1));
+        }
+    });
     let mut stdout = io::stdout();
     if let Err(e) = terminal::enable_raw_mode() {
         log_error!("Failed to enable raw mode: {}", e);
@@ -73,7 +105,7 @@ pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
     let mut key_mode = KeyMode::Default;
     let mut theme = Theme::Default;
     let tab_titles: Vec<String> = TAB_ICONS.iter().map(|s| s.to_string()).collect();
-    let mut help_text = String::from("[←/→] Switch Tab  [↑/↓] Scroll  [Enter] Select  [q/Ctrl+C] Quit | [/] Search | [Esc] Back | [F2] KeyMode | [F3] Theme");
+    let help_text = String::from("[←/→] Switch Tab  [↑/↓] Scroll  [Enter] Select  [q/Ctrl+C] Quit | [/] Search | [Esc] Back | [F2] KeyMode | [F3] Theme");
 
     // --- Sessions grouping ---
     let mut sessions: Vec<(DateTime<Local>, DateTime<Local>, Vec<&HistoryEntry>)> = vec![];
@@ -108,11 +140,11 @@ pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
     // --- Search state ---
     let mut search_mode = false;
     let mut search_query = String::new();
-    let mut search_results: Vec<&HistoryEntry> = vec![];
+    let mut search_results: Vec<HistoryEntry> = vec![];
     let mut search_selected: usize = 0;
 
     // Cache summary data to avoid flicker
-    let mut freq_vec: Vec<(String, usize)> = {
+    let freq_vec: Vec<(String, usize)> = {
         use std::collections::HashMap;
         let mut freq: HashMap<String, usize> = HashMap::new();
         for entry in history {
@@ -123,12 +155,27 @@ pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
         freq_vec.sort_by(|a, b| b.1.cmp(&a.1));
         freq_vec
     };
+    // Cache alias suggestions to avoid flicker
+    let alias_vec: Vec<(String, usize)> = {
+        use std::collections::HashMap;
+        let mut freq: HashMap<String, usize> = HashMap::new();
+        for entry in history {
+            let cmd = entry.command.trim().to_string();
+            if cmd.len() > 15 {
+                *freq.entry(cmd).or_insert(0) += 1;
+            }
+        }
+        let mut alias_vec: Vec<_> = freq.into_iter().collect();
+        alias_vec.sort_by(|a, b| b.1.cmp(&a.1));
+        alias_vec
+    };
     let max_count = freq_vec.first().map(|x| x.1).unwrap_or(1);
     let total_cmds = history.len();
 
     while running {
+        let history = history_data.lock().unwrap();
         if let Err(e) = terminal.draw(|f| {
-            let size = f.size();
+            let size = f.area(); // .size() is deprecated
             let chunks = Layout::default()
                 .direction(Direction::Vertical)
                 .margin(1)
@@ -171,7 +218,7 @@ pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
                         .header(header)
                         .block(Block::default().title("Top Commands ").borders(Borders::ALL).title_alignment(Alignment::Center))
                         .column_spacing(1)
-                        .highlight_style(Style::default().bg(Color::Blue).fg(Color::White).add_modifier(Modifier::BOLD));
+                        .row_highlight_style(Style::default().bg(Color::Blue).fg(Color::White).add_modifier(Modifier::BOLD)); // highlight_style -> row_highlight_style
                     f.render_widget(table, chunks[1]);
                     // Subtitle with total commands
                     let subtitle = Paragraph::new(format!("Total commands: {}", total_cmds))
@@ -223,7 +270,7 @@ pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
                     let session_items: Vec<ListItem> = sessions.iter().enumerate().map(|(i, (start, end, cmds))| {
                         ListItem::new(format!("Session {:>2}: {} - {} ({} cmds)", i+1, start.format("%Y-%m-%d %H:%M"), end.format("%H:%M"), cmds.len()))
                     }).collect();
-                    let mut session_list = List::new(session_items)
+                    let session_list = List::new(session_items)
                         .block(Block::default().title("Sessions").borders(Borders::ALL))
                         .highlight_symbol("→ ")
                         .highlight_style(Style::default().bg(Color::Blue).fg(Color::White).add_modifier(Modifier::BOLD));
@@ -234,7 +281,7 @@ pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
                     if !sessions.is_empty() && right.width > 0 {
                         let (_, _, cmds) = &sessions[session_selected];
                         let cmd_items: Vec<ListItem> = cmds.iter().map(|e| ListItem::new(format!("{}", e.command))).collect();
-                        let mut cmd_list = List::new(cmd_items)
+                        let cmd_list = List::new(cmd_items)
                             .block(Block::default().title("Commands").borders(Borders::ALL))
                             .highlight_symbol("→ ")
                             .highlight_style(Style::default().bg(Color::Magenta).fg(Color::White).add_modifier(Modifier::BOLD));
@@ -268,6 +315,124 @@ pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
                     let mut state = ListState::default();
                     state.select(Some(search_selected));
                     f.render_stateful_widget(list, results_area, &mut state);
+                },
+                Tab::Aliases => {
+                    let rows: Vec<Row> = alias_vec.iter().take(10).enumerate().map(|(i, (cmd, count))| {
+                        Row::new(vec![
+                            format!(" a{}", i+1),
+                            format!("{}", cmd),
+                            format!("{}", count),
+                        ]).style(Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD))
+                    }).collect();
+                    let table = Table::new(rows, [Constraint::Length(6), Constraint::Min(30), Constraint::Length(6)])
+                        .header(Row::new(vec!["Alias", "Command", "Count"]).style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD | Modifier::UNDERLINED)))
+                        .block(Block::default().title("Alias Suggestions ").borders(Borders::ALL).title_alignment(Alignment::Center))
+                        .column_spacing(1)
+                        .row_highlight_style(Style::default().bg(Color::Rgb(255,0,128)).fg(Color::White).add_modifier(Modifier::BOLD | Modifier::ITALIC)); // highlight_style -> row_highlight_style
+                    f.render_widget(table, chunks[1]);
+                },
+                Tab::Dangerous => {
+                    let patterns = ["rm -rf", "rm -r /", "dd if=", "mkfs", ":(){ :|:& };:", "shutdown", "reboot", "curl | sh", "wget | sh", "chmod 777 /", "chown root", "> /dev/sda", "/dev/sda", ":(){ :|: & };:", "rm -rf --no-preserve-root", "poweroff", "halt", "init 0", "mkfs.ext", "dd of=/dev/", "mv /", "cp /dev/null", "yes | rm", "yes | dd", "yes | mkfs"];
+                    let mut items: Vec<ListItem> = vec![];
+                    for entry in history.iter() {
+                        for pat in &patterns {
+                            if entry.command.contains(pat) {
+                                items.push(ListItem::new(format!("⚠️  {} (pattern: '{}')", entry.command, pat)).style(Style::default().fg(Color::Red)));
+                                break;
+                            }
+                        }
+                    }
+                    if items.is_empty() {
+                        items.push(ListItem::new("No dangerous commands found.").style(Style::default().fg(Color::Green)));
+                    }
+                    let list = List::new(items).block(Block::default().title("Dangerous Commands ").borders(Borders::ALL));
+                    f.render_widget(list, chunks[1]);
+                },
+                Tab::Directory => {
+                    use std::collections::HashMap;
+                    let mut dir_counts: HashMap<String, usize> = HashMap::new();
+                    let mut last_dir = String::from("~");
+                    for entry in history.iter() {
+                        if entry.command.starts_with("cd ") {
+                            let dir = entry.command[3..].trim().to_string();
+                            last_dir = dir.clone();
+                            *dir_counts.entry(dir).or_insert(0) += 1;
+                        } else {
+                            *dir_counts.entry(last_dir.clone()).or_insert(0) += 1;
+                        }
+                    }
+                    let mut dir_vec: Vec<_> = dir_counts.into_iter().collect();
+                    dir_vec.sort_by(|a, b| b.1.cmp(&a.1));
+                    let rows: Vec<Row> = dir_vec.iter().take(15).map(|(dir, count)| Row::new(vec![dir.clone(), count.to_string()])).collect();
+                    let table = Table::new(rows, [Constraint::Min(30), Constraint::Length(6)])
+                        .header(Row::new(vec!["Directory", "Count"]).style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)))
+                        .block(Block::default().title("Per-Directory Stats ").borders(Borders::ALL).title_alignment(Alignment::Center));
+                    f.render_widget(table, chunks[1]);
+                },
+                Tab::Host => {
+                    use std::collections::HashMap;
+                    use std::env;
+                    let mut host_counts: HashMap<String, usize> = HashMap::new();
+                    let hostname = env::var("HOSTNAME").unwrap_or_else(|_| "localhost".to_string());
+                    for _ in history.iter() {
+                        *host_counts.entry(hostname.clone()).or_insert(0) += 1;
+                    }
+                    let rows: Vec<Row> = host_counts.iter().map(|(host, count)| Row::new(vec![host.clone(), count.to_string()])).collect();
+                    let table = Table::new(rows, [Constraint::Min(20), Constraint::Length(6)])
+                        .header(Row::new(vec!["Host", "Count"]).style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)))
+                        .block(Block::default().title("Per-Host Stats ").borders(Borders::ALL).title_alignment(Alignment::Center));
+                    f.render_widget(table, chunks[1]);
+                },
+                Tab::TimeOfDay => {
+                    use chrono::Timelike;
+                    let mut hours = [0usize; 24];
+                    for entry in history.iter() {
+                        if let Some(ts) = entry.timestamp {
+                            hours[ts.hour() as usize] += 1;
+                        }
+                    }
+                    let rows: Vec<Row> = (0..24).map(|h| {
+                        let count = hours[h];
+                        let bar = "#".repeat(count / 2.max(1));
+                        Row::new(vec![format!("{:02}:00", h), count.to_string(), bar])
+                    }).collect();
+                    let table = Table::new(rows, [Constraint::Length(7), Constraint::Length(6), Constraint::Min(10)])
+                        .header(Row::new(vec!["Hour", "Count", "Bar"]).style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)))
+                        .block(Block::default().title("Time-of-Day Stats ").borders(Borders::ALL).title_alignment(Alignment::Center));
+                    f.render_widget(table, chunks[1]);
+                },
+                Tab::Heatmap => {
+                    use chrono::{Datelike, Timelike};
+                    let mut heatmap = [[0usize; 24]; 7];
+                    for entry in history.iter() {
+                        if let Some(ts) = entry.timestamp {
+                            let wd = ts.weekday().num_days_from_monday() as usize;
+                            let hr = ts.hour() as usize;
+                            heatmap[wd][hr] += 1;
+                        }
+                    }
+                    let days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+                    let mut rows: Vec<Row> = vec![];
+                    for (d, row) in heatmap.iter().enumerate() {
+                        let mut cells = vec![days[d].to_string()];
+                        for &count in row {
+                            let c = match count {
+                                0 => " ",
+                                1..=2 => ".",
+                                3..=5 => "*",
+                                6..=10 => "o",
+                                _ => "#",
+                            };
+                            cells.push(c.to_string());
+                        }
+                        rows.push(Row::new(cells));
+                    }
+                    let mut header_cells = vec!["Day".to_string()];
+                    for h in 0..24 { header_cells.push(format!("{:02}", h)); }
+                    let table = Table::new(rows, vec![Constraint::Length(4)].into_iter().chain(std::iter::repeat(Constraint::Length(2)).take(24)).collect::<Vec<_>>())
+                        .header(Row::new(header_cells).style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)))
+                        .block(Block::default().title("Weekly Heatmap ").borders(Borders::ALL).title_alignment(Alignment::Center));
+                    f.render_widget(table, chunks[1]);
                 },
             }
             // Show key mode in help bar
@@ -338,13 +503,14 @@ pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
                             }
                         }
                         // Update search results
-                        search_results = if !search_query.is_empty() {
+                        let search_vec: Vec<HistoryEntry> = if !search_query.is_empty() {
                             if let Ok(re) = Regex::new(&search_query) {
-                                history.iter().filter(|e| re.is_match(&e.command)).collect()
+                                history.iter().filter(|e| re.is_match(&e.command)).cloned().collect()
                             } else {
-                                history.iter().filter(|e| e.command.contains(&search_query)).collect()
+                                history.iter().filter(|e| e.command.contains(&search_query)).cloned().collect()
                             }
                         } else { vec![] };
+                        search_results = search_vec;
                         if search_selected >= search_results.len() { search_selected = 0; }
                         continue;
                     }
@@ -356,6 +522,12 @@ pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
                                     Tab::PerCommand => Tab::Summary,
                                     Tab::Sessions => Tab::PerCommand,
                                     Tab::Search => Tab::Sessions,
+                                    Tab::Aliases => Tab::Summary,
+                                    Tab::Dangerous => Tab::Aliases,
+                                    Tab::Directory => Tab::Dangerous,
+                                    Tab::Host => Tab::Directory,
+                                    Tab::TimeOfDay => Tab::Host,
+                                    Tab::Heatmap => Tab::TimeOfDay,
                                 };
                                 selected = 0; session_selected = 0; session_cmd_selected = 0; search_selected = 0;
                             },
@@ -364,7 +536,13 @@ pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
                                     Tab::Summary => Tab::PerCommand,
                                     Tab::PerCommand => Tab::Sessions,
                                     Tab::Sessions => Tab::Search,
-                                    Tab::Search => Tab::Summary,
+                                    Tab::Search => Tab::Aliases,
+                                    Tab::Aliases => Tab::Dangerous,
+                                    Tab::Dangerous => Tab::Directory,
+                                    Tab::Directory => Tab::Host,
+                                    Tab::Host => Tab::TimeOfDay,
+                                    Tab::TimeOfDay => Tab::Heatmap,
+                                    Tab::Heatmap => Tab::Summary,
                                 };
                                 selected = 0; session_selected = 0; session_cmd_selected = 0; search_selected = 0;
                             },
@@ -446,7 +624,13 @@ pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
                                     Tab::Summary => Tab::PerCommand,
                                     Tab::PerCommand => Tab::Sessions,
                                     Tab::Sessions => Tab::Search,
-                                    Tab::Search => Tab::Summary,
+                                    Tab::Search => Tab::Aliases,
+                                    Tab::Aliases => Tab::Dangerous,
+                                    Tab::Dangerous => Tab::Directory,
+                                    Tab::Directory => Tab::Host,
+                                    Tab::Host => Tab::TimeOfDay,
+                                    Tab::TimeOfDay => Tab::Heatmap,
+                                    Tab::Heatmap => Tab::Summary,
                                 };
                                 selected = 0; session_selected = 0; session_cmd_selected = 0; search_selected = 0;
                             },
@@ -456,6 +640,12 @@ pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
                                     Tab::PerCommand => Tab::Summary,
                                     Tab::Sessions => Tab::PerCommand,
                                     Tab::Search => Tab::Sessions,
+                                    Tab::Aliases => Tab::Summary,
+                                    Tab::Dangerous => Tab::Aliases,
+                                    Tab::Directory => Tab::Dangerous,
+                                    Tab::Host => Tab::Directory,
+                                    Tab::TimeOfDay => Tab::Host,
+                                    Tab::Heatmap => Tab::TimeOfDay,
                                 };
                                 selected = 0; session_selected = 0; session_cmd_selected = 0; search_selected = 0;
                             },
