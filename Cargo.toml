@@ -1,6 +1,6 @@
 [package]
 name = "heist"
-version = "0.2.1"
+version = "1.0.0"
 edition = "2021"
 description = "Cross-platform terminal shell history analyzer with TUI and CLI modes."
 authors = ["Zer0C0d3r <odin.coder77@proton.me>"]
@@ -11,7 +11,7 @@ clap = { version = "4.5", features = ["derive"] }
 ratatui = "0.29.0"
 crossterm = "0.29.0"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde_json = "1.0.141"
 serde_yaml = "0.9.33"
 serde_toml = { package = "toml", version = "0.9.2" }
 dirs = "6.0.0"
