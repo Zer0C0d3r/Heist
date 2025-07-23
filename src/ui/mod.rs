@@ -178,6 +178,24 @@ pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
         alias_vec.sort_by(|a, b| b.1.cmp(&a.1));
         alias_vec
     };
+    // Cache per-directory stats to avoid flicker
+    let dir_vec: Vec<(String, usize)> = {
+        use std::collections::HashMap;
+        let mut dir_counts: HashMap<String, usize> = HashMap::new();
+        let mut last_dir = String::from("~");
+        for entry in history.iter() {
+            if entry.command.starts_with("cd ") {
+                let dir = entry.command[3..].trim().to_string();
+                last_dir = dir.clone();
+                *dir_counts.entry(dir).or_insert(0) += 1;
+            } else {
+                *dir_counts.entry(last_dir.clone()).or_insert(0) += 1;
+            }
+        }
+        let mut dir_vec: Vec<_> = dir_counts.into_iter().collect();
+        dir_vec.sort_by(|a, b| b.1.cmp(&a.1));
+        dir_vec
+    };
     let max_count = freq_vec.first().map(|x| x.1).unwrap_or(1);
     let total_cmds = history.len();
 
@@ -358,20 +376,6 @@ pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
                     f.render_widget(list, chunks[1]);
                 },
                 Tab::Directory => {
-                    use std::collections::HashMap;
-                    let mut dir_counts: HashMap<String, usize> = HashMap::new();
-                    let mut last_dir = String::from("~");
-                    for entry in history.iter() {
-                        if entry.command.starts_with("cd ") {
-                            let dir = entry.command[3..].trim().to_string();
-                            last_dir = dir.clone();
-                            *dir_counts.entry(dir).or_insert(0) += 1;
-                        } else {
-                            *dir_counts.entry(last_dir.clone()).or_insert(0) += 1;
-                        }
-                    }
-                    let mut dir_vec: Vec<_> = dir_counts.into_iter().collect();
-                    dir_vec.sort_by(|a, b| b.1.cmp(&a.1));
                     let rows: Vec<Row> = dir_vec.iter().take(15).map(|(dir, count)| Row::new(vec![dir.clone(), count.to_string()])).collect();
                     let table = Table::new(rows, [Constraint::Min(30), Constraint::Length(6)])
                         .header(Row::new(vec!["Directory", "Count"]).style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)))
