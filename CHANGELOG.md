@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.0.0] - 2025-07-23
+
+### Major Release
+
+- Stable, feature-complete release: TUI/CLI, multi-shell, real-time analytics, accessibility, advanced error logging, installer, and docs.
+- Real-time history updates in TUI (live tracking via PROMPT_COMMAND).
+- Accessibility: theme switching (default, high-contrast, colorblind), Vim/Emacs keybindings, icons, animations.
+- Advanced analytics: alias suggestions, dangerous command flagging, per-directory/host stats, time-of-day, heatmap, session grouping.
+- Comprehensive tests, robust error handling, and logging.
+- Professional README and installer script.
+- CI/CD automation, release workflow, dependabot, coverage, lint.
+
+### Added
+
+- All analytics features: alias suggestion, dangerous command flagging, per-directory/host stats, time-of-day, heatmap, session detection, live tracking.
+- TUI polish: tabs, icons, animations, accessibility, flicker-free rendering.
+- Installer: animated, auto-update, live tracking setup.
+- Documentation: README overhaul, contributor guide, architecture, FAQ.
+
+### Changed
+
+- Refactored codebase for modularity, performance, and extensibility.
+- Improved error messages, logging, and accessibility.
+- Updated workflows and automation for releases.
+
+### Fixed
+
+- All known issues from previous versions resolved.
+- No breaking changes; all features stable and tested.
+
+---
+
 ## [0.2.1] - 2024-06-09
 
 ### Added
