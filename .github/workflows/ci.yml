@@ -7,9 +7,41 @@ on:
     branches: [main, master]
 
 jobs:
-  build:
+  max-perf:
+    name: Maximum Performance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: cargo-registry-max-perf
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: cargo-build-max-perf
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - name: Build (release, optimized)
+        run: cargo build --release
+      - name: Run tests (release, minimal)
+        run: cargo test --release --no-default-features
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: heist-linux-x86_64
+          path: target/release/heist
+
+  min-perf:
+    name: Minimal Performance (Thorough)
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         rust: [stable, beta, nightly]
@@ -20,13 +52,44 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
           override: true
-      - name: Build
+      - name: Build (debug)
+        run: cargo build
+      - name: Build (release)
         run: cargo build --release
-      - name: Run tests
+      - name: Run tests (all features)
         run: cargo test --all-features
-      - name: Upload binary artifact
+      - name: Clippy lint
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Coverage (Linux only)
+        if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
+        run: |
+          cargo install cargo-tarpaulin
+          cargo tarpaulin --out Xml
+      - name: Upload coverage artifact
         if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
         uses: actions/upload-artifact@v4
         with:
-          name: heist-linux-x86_64
-          path: target/release/heist
+          name: coverage-report
+          path: cobertura.xml
+
+  min-perf-arch:
+    name: Minimal Performance (Arch Linux)
+    runs-on: archlinux-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - name: Build
+        run: cargo build
+      - name: Test
+        run: cargo test
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: heist-arch-x86_64
+          path: target/debug/heist
