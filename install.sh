@@ -8,13 +8,27 @@ CARGO_BIN="${HOME}/.cargo/bin/${APP_NAME}"
 VERSION="v1.0.0"
 
 # Colors
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-MAGENTA='\033[0;35m'
-NC='\033[0m'
-BOLD='\033[1m'
+if [ ! -t 1 ]; then
+    GREEN=''
+    RED=''
+    YELLOW=''
+    CYAN=''
+    MAGENTA=''
+    NC=''
+    BOLD=''
+    CLEAR=''
+    TPUT_CLEAR=':'
+else
+    GREEN='\033[0;32m'
+    RED='\033[0;31m'
+    YELLOW='\033[1;33m'
+    CYAN='\033[0;36m'
+    MAGENTA='\033[0;35m'
+    NC='\033[0m'
+    BOLD='\033[1m'
+    CLEAR='clear'
+    TPUT_CLEAR='tput clear'
+fi
 
 # Spinner animation
 spinner() {
@@ -34,7 +48,7 @@ spinner() {
 
 # Banner
 banner() {
-    clear
+    $CLEAR
     echo -e "${MAGENTA}${BOLD}"
     cat <<'EOF'
 ██╗  ██╗███████╗██╗███████╗████████╗

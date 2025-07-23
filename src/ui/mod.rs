@@ -12,6 +12,7 @@ use std::thread;
 use std::time::Duration;
 use chrono::{DateTime, Local};
 use regex::Regex;
+use atty::Stream;
 
 #[derive(Copy, Clone, PartialEq)]
 enum Tab {
@@ -65,6 +66,10 @@ macro_rules! log_error {
 }
 
 pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
+    if !atty::is(Stream::Stdout) {
+        eprintln!("[heist error] TUI requires a real terminal. Run in a supported terminal emulator.");
+        return Ok(());
+    }
     // Replace get_history_path and load_history_from_file with correct parser logic
     let shell = crate::parser::detect_shell();
     let args = _args.clone();
@@ -117,10 +122,12 @@ pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
                 if let Some(last) = last_ts {
                     if ts.signed_duration_since(last).num_minutes() > 10 {
                         if !current.is_empty() {
-                            let start = current.first().unwrap().timestamp.unwrap();
-                            let end = current.last().unwrap().timestamp.unwrap();
-                            sessions.push((start, end, current));
-                            current = vec![];
+                            let start_opt = current.first().and_then(|e| e.timestamp);
+                            let end_opt = current.last().and_then(|e| e.timestamp);
+                            if let (Some(start), Some(end)) = (start_opt, end_opt) {
+                                sessions.push((start, end, current.clone()));
+                            }
+                            current.clear();
                         }
                     }
                 }
@@ -129,9 +136,11 @@ pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
             current.push(entry);
         }
         if !current.is_empty() {
-            let start = current.first().unwrap().timestamp.unwrap();
-            let end = current.last().unwrap().timestamp.unwrap();
-            sessions.push((start, end, current));
+            let start_opt = current.first().and_then(|e| e.timestamp);
+            let end_opt = current.last().and_then(|e| e.timestamp);
+            if let (Some(start), Some(end)) = (start_opt, end_opt) {
+                sessions.push((start, end, current));
+            }
         }
     }
     let mut session_selected: usize = 0;

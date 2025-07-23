@@ -21,6 +21,7 @@ anyhow = "1.0"
 rayon = { version = "1.10", optional = true }
 log = "0.4"
 thiserror = "2.0.12"
+atty = "0.2.14"
 
 [features]
 default = []
