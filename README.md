@@ -81,7 +81,7 @@ cd Heist
 ./install.sh
 ```
 
-### 2. Docker
+### 2. Docker [Stub - in-development]
 
 **Build locally:**
 
