@@ -1,7 +1,0 @@
-target/
-.git/
-.github/
-*.rs.bk
-*.log
-*.tmp
-Cargo.lock
