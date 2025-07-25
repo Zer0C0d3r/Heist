@@ -1,12 +1,5 @@
 # Heist: The Ultimate Shell History Analyzer
 
-![Heist Logo](https://raw.githubusercontent.com/Zer0C0d3r/Heist/master/assets/logo.png)
-
-[![Build Status](https://img.shields.io/github/actions/workflow/status/Zer0C0d3r/Heist/ci.yml?branch=master)](https://github.com/Zer0C0d3r/Heist/actions)
-[![Version](https://img.shields.io/github/v/tag/Zer0C0d3r/Heist?label=release)](https://github.com/Zer0C0d3r/Heist/releases)
-[![License](https://img.shields.io/github/license/Zer0C0d3r/Heist)](LICENSE)
-[![Docker Pulls](https://img.shields.io/docker/pulls/zer0c0d3r/heist)](https://hub.docker.com/r/zer0c0d3r/heist)
-
 ---
 
 ## What is Heist?
@@ -25,7 +18,6 @@ Heist is a cross-platform, blazing-fast shell history analyzer and visualizer. I
 - [Analytics Explained](#analytics-explained)
 - [Live Tracking & Shell Integration](#live-tracking--shell-integration)
 - [Customization](#customization)
-- [Docker Guide](#docker-guide)
 - [Advanced Usage](#advanced-usage)
 - [Troubleshooting](#troubleshooting)
 - [Developer Guide](#developer-guide)
@@ -65,7 +57,7 @@ Heist is a cross-platform, blazing-fast shell history analyzer and visualizer. I
 
 ## Installation
 
-### 1. Native (Linux/macOS)
+### (Linux/macOS)
 
 **One-liner:**
 
@@ -81,32 +73,8 @@ cd Heist
 ./install.sh
 ```
 
-### 2. Docker [Stub - in-development]
-
-**Build locally:**
-
-```sh
-docker build --build-arg HEIST_VERSION=$(git describe --tags --always) -t heist:latest .
-docker run --rm -it heist
-```
-
-**Pull from Docker Hub:**
-
-```sh
-docker pull zer0c0d3r/heist:latest
-docker run --rm -it zer0c0d3r/heist
-```
-
-**Mount your history:**
-
-```sh
-docker run -v ~/.bash_history:/root/.bash_history -it heist
-```
-
-### 3. Windows
-
-Use WSL or Docker.
-
+<<<<<<< HEAD
+f145e0 (Change : Docker Instructions Deleted)
 ---
 
 ## Quick Start
@@ -188,20 +156,6 @@ Enable real-time history updates:
 
 ---
 
-## Docker Guide
-
-- **Multi-arch:** `docker buildx build --platform linux/amd64,linux/arm64 -t heist:latest .`
-- **Healthcheck:** Built-in, checks `heist --version`
-- **Mount history:** `docker run -v ~/.bash_history:/root/.bash_history -it heist`
-- **Environment:** Use `-it` for TUI, plain for CLI
-- **Labels:** Version, maintainer, title
-- **Troubleshooting:**
-  - TUI requires a real terminal (`-it`)
-  - Mount history files for analytics
-  - Use `--cli` for non-interactive mode
-
----
-
 ## Advanced Usage
 
 - **Export:** `heist --cli --export csv > history.csv`
@@ -238,10 +192,6 @@ Enable real-time history updates:
 **Q: Which shells are supported?**
 
 A: Bash, Zsh, Fish, Csh, Tcsh, Ksh, Dash, Sh, Mksh, Yash, Osh
-
-**Q: Can I use Heist on Windows?**
-
-A: Yes, via WSL or Docker
 
 **Q: How do I customize dangerous patterns?**
 
@@ -371,13 +321,3 @@ MIT License. See [LICENSE](LICENSE).
 - Include OS, shell, Heist version, and steps to reproduce
 - For security issues, use private contact in repository
 
----
-
-## Roadmap
-
-- Config file for custom analytics and UI settings
-- More shell support and auto-detection
-- Cloud sync (opt-in, privacy-first)
-- Plugin system for custom analytics
-- More accessibility features
-- Community-driven dangerous pattern lists
