@@ -35,7 +35,7 @@ Heist is a cross-platform, blazing-fast shell history analyzer and visualizer. I
 - [Community & Support](#community--support)
 - [Glossary](#glossary)
 - [Bug Reporting & Feature Requests](#bug-reporting--feature-requests)
-- [Roadmap](#roadmap)
+
 
 ---
 
