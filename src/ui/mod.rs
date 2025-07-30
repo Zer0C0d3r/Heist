@@ -43,15 +43,15 @@ enum Theme {
 }
 
 const TAB_ICONS: [&str; 10] = [
-    " Summary",      // Dashboard
-    " Commands",     // Terminal
+    "󰄮 Summary",      // Dashboard
+    " Commands",     // Terminal
     " Sessions",     // Calendar
-    " Search",       // Search
-    " Aliases",      // Tag
-    " Dangerous",    // Warning
+    "󰍉 Search",       // Search
+    "󰌋 Aliases",      // Tag
+    "󰳦 angerous",    // Warning
     " Directory",    // Folder
-    " Host",         // Server
-    " TimeOfDay",    // Clock
+    "󰒋 Host",         // Server
+    "󰥔 TimeOfDay",    // Clock
     " Heatmap",      // Chart
 ];
 
@@ -393,7 +393,7 @@ pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
                     let rows: Vec<Row> = host_counts.iter().map(|(host, count)| Row::new(vec![host.clone(), count.to_string()])).collect();
                     let table = Table::new(rows, [Constraint::Min(20), Constraint::Length(6)])
                         .header(Row::new(vec!["Host", "Count"]).style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)))
-                        .block(Block::default().title("Per-Host Stats ").borders(Borders::ALL).title_alignment(Alignment::Center));
+                        .block(Block::default().title("Per-Host Stats 󰒋").borders(Borders::ALL).title_alignment(Alignment::Center));
                     f.render_widget(table, chunks[1]);
                 },
                 Tab::TimeOfDay => {
@@ -406,12 +406,12 @@ pub fn run_tui(history: &Vec<HistoryEntry>, _args: &CliArgs) -> Result<()> {
                     }
                     let rows: Vec<Row> = (0..24).map(|h| {
                         let count = hours[h];
-                        let bar = "#".repeat(count / 2.max(1));
+                        let bar = "█".repeat(count / 2.max(1));
                         Row::new(vec![format!("{:02}:00", h), count.to_string(), bar])
                     }).collect();
                     let table = Table::new(rows, [Constraint::Length(7), Constraint::Length(6), Constraint::Min(10)])
                         .header(Row::new(vec!["Hour", "Count", "Bar"]).style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)))
-                        .block(Block::default().title("Time-of-Day Stats ").borders(Borders::ALL).title_alignment(Alignment::Center));
+                        .block(Block::default().title("Time-of-Day Stats 󰥔").borders(Borders::ALL).title_alignment(Alignment::Center));
                     f.render_widget(table, chunks[1]);
                 },
                 Tab::Heatmap => {
