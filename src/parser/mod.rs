@@ -1,23 +1,28 @@
 //! Shell history parser module
-//! Supports bash, zsh, and fish history formats
+//! Supports bash, zsh, fish, and other Unix shells
+
+use std::fs::{File, OpenOptions};
+use std::io::{BufRead, BufReader, Write as IoWrite};
+use std::path::Path;
+
+use anyhow::{Context, Result};
+use chrono::{DateTime, Local, TimeZone};
+use dirs::home_dir;
+use regex::Regex;
 
 use crate::cli::{CliArgs, ShellType};
-use anyhow::{Result, Context};
 use crate::models::HistoryEntry;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
-use dirs::home_dir;
-use chrono::{DateTime, Local, TimeZone};
-use regex::Regex;
-use std::fs;
-use std::fs::OpenOptions;
-use std::io::Write as IoWrite;
 
+// Logging macro for errors
 macro_rules! log_error {
     ($($arg:tt)*) => {{
         let msg = format!($($arg)*);
         eprintln!("[heist error] {}", msg);
-        if let Ok(mut f) = OpenOptions::new().create(true).append(true).open("heist_error.log") {
+        if let Ok(mut f) = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("heist_error.log") 
+        {
             let _ = writeln!(f, "{}", msg);
         }
     }};
@@ -25,32 +30,21 @@ macro_rules! log_error {
 
 /// Detect the user's shell from the SHELL environment variable
 pub fn detect_shell() -> ShellType {
-    use std::env;
-    let shell = env::var("SHELL").unwrap_or_default();
-    if shell.contains("zsh") {
-        ShellType::Zsh
-    } else if shell.contains("fish") {
-        ShellType::Fish
-    } else if shell.contains("csh") && !shell.contains("tcsh") {
-        ShellType::Csh
-    } else if shell.contains("tcsh") {
-        ShellType::Tcsh
-    } else if shell.contains("ksh") {
-        ShellType::Ksh
-    } else if shell.contains("dash") {
-        ShellType::Dash
-    } else if shell.contains("mksh") {
-        ShellType::Mksh
-    } else if shell.contains("yash") {
-        ShellType::Yash
-    } else if shell.contains("osh") {
-        ShellType::Osh
-    } else if shell.contains("sh") {
-        ShellType::Sh
-    } else if shell.contains("bash") {
-        ShellType::Bash
-    } else {
-        ShellType::Bash // Default fallback
+    let shell = std::env::var("SHELL").unwrap_or_default();
+    
+    match shell.as_str() {
+        s if s.contains("zsh") => ShellType::Zsh,
+        s if s.contains("fish") => ShellType::Fish,
+        s if s.contains("tcsh") => ShellType::Tcsh,
+        s if s.contains("csh") => ShellType::Csh,
+        s if s.contains("ksh") => ShellType::Ksh,
+        s if s.contains("dash") => ShellType::Dash,
+        s if s.contains("mksh") => ShellType::Mksh,
+        s if s.contains("yash") => ShellType::Yash,
+        s if s.contains("osh") => ShellType::Osh,
+        s if s.contains("sh") => ShellType::Sh,
+        s if s.contains("bash") => ShellType::Bash,
+        _ => ShellType::Bash, // Default fallback
     }
 }
 
@@ -69,337 +63,254 @@ pub fn parse_history(shell: &ShellType, args: &CliArgs) -> Result<Vec<HistoryEnt
         ShellType::Yash => parse_yash_history(args)?,
         ShellType::Osh => parse_osh_history(args)?,
     };
-    // If live tracking file exists, merge it in (dedup by command+timestamp)
-    let mut live = parse_heist_live_history();
-    entries.append(&mut live);
+
+    // Merge live tracking history
+    let mut live_entries = parse_heist_live_history();
+    entries.append(&mut live_entries);
+
+    // Sort and deduplicate
     entries.sort_by_key(|e| e.timestamp);
     entries.dedup_by(|a, b| a.timestamp == b.timestamp && a.command == b.command);
+
     if entries.is_empty() {
         log_error!("No entries parsed for shell {:?}", shell);
     }
+
     Ok(entries)
+}
+
+/// Get home directory with error handling
+fn get_home_dir() -> Result<std::path::PathBuf> {
+    home_dir().ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))
+}
+
+/// Read lines from a history file
+fn read_history_file(path: &Path) -> Result<Vec<String>> {
+    if !path.exists() {
+        eprintln!("Warning: History file not found at {:?}", path);
+        return Ok(Vec::new());
+    }
+
+    let file = File::open(path)
+        .context(format!("Failed to open history file: {:?}", path))?;
+    
+    let reader = BufReader::new(file);
+    reader.lines().collect::<Result<Vec<_>, _>>()
+        .context("Failed to read history file lines")
+}
+
+/// Create a basic history entry
+fn create_entry(command: String, timestamp: Option<DateTime<Local>>) -> HistoryEntry {
+    HistoryEntry {
+        timestamp,
+        command,
+        session_id: None,
+    }
 }
 
 /// Parse bash history file (~/.bash_history)
 fn parse_bash_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
-    let mut entries = Vec::new();
-    let hist_path = home_dir()
-        .map(|d| d.join(".bash_history"))
-        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
-    if !hist_path.exists() {
-        eprintln!("Warning: Bash history file not found at {:?}", hist_path);
-        return Ok(entries);
-    }
-    let file = File::open(&hist_path).context(format!("Failed to open Bash history file: {:?}", hist_path))?;
-    let reader = BufReader::new(file);
-    for line in reader.lines() {
-        let line = line?;
-        let trimmed = line.trim();
-        if trimmed.is_empty() { continue; }
-        entries.push(HistoryEntry {
-            timestamp: None,
-            command: trimmed.to_string(),
-            session_id: None,
-        });
-    }
-    Ok(entries)
+    let hist_path = get_home_dir()?.join(".bash_history");
+    let lines = read_history_file(&hist_path)?;
+    
+    Ok(lines
+        .into_iter()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(create_entry(trimmed.to_string(), None))
+            }
+        })
+        .collect())
 }
 
 /// Parse zsh history file (~/.zsh_history)
 fn parse_zsh_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
-    use chrono::TimeZone;
-    let mut entries = Vec::new();
-    let hist_path = home_dir()
-        .map(|d| d.join(".zsh_history"))
-        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
-    if !hist_path.exists() {
-        eprintln!("Warning: Zsh history file not found at {:?}", hist_path);
-        return Ok(entries);
-    }
-    let file = File::open(&hist_path).context(format!("Failed to open Zsh history file: {:?}", hist_path))?;
-    let reader = BufReader::new(file);
-    let re = regex::Regex::new(r"^: (\d+):\d+;(.*)").unwrap();
-    for line in reader.lines() {
-        let line = line?;
-        if let Some(cap) = re.captures(&line) {
-            let ts = cap[1].parse::<i64>().ok();
-            let command = cap[2].trim().to_string();
-            let timestamp = ts.and_then(|t| {
-                chrono::Local.timestamp_opt(t, 0).single()
-            });
-            entries.push(HistoryEntry {
-                timestamp,
-                command,
-                session_id: None,
-            });
-        } else if !line.trim().is_empty() {
-            entries.push(HistoryEntry {
-                timestamp: None,
-                command: line.trim().to_string(),
-                session_id: None,
-            });
-        }
-    }
-    Ok(entries)
+    let hist_path = get_home_dir()?.join(".zsh_history");
+    let lines = read_history_file(&hist_path)?;
+    let re = Regex::new(r"^: (\d+):\d+;(.*)").unwrap();
+    
+    Ok(lines
+        .into_iter()
+        .filter_map(|line| {
+            if let Some(cap) = re.captures(&line) {
+                let timestamp = cap[1]
+                    .parse::<i64>()
+                    .ok()
+                    .and_then(|t| Local.timestamp_opt(t, 0).single());
+                let command = cap[2].trim().to_string();
+                Some(create_entry(command, timestamp))
+            } else if !line.trim().is_empty() {
+                Some(create_entry(line.trim().to_string(), None))
+            } else {
+                None
+            }
+        })
+        .collect())
 }
 
 /// Parse fish history file (~/.local/share/fish/fish_history)
 fn parse_fish_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
+    let hist_path = get_home_dir()?.join(".local/share/fish/fish_history");
+    let lines = read_history_file(&hist_path)?;
+    
     let mut entries = Vec::new();
-    let hist_path = home_dir()
-        .map(|d| d.join(".local/share/fish/fish_history"))
-        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
-    if !hist_path.exists() {
-        eprintln!("Warning: Fish history file not found at {:?}", hist_path);
-        return Ok(entries);
-    }
-    let file = File::open(&hist_path).context(format!("Failed to open Fish history file: {:?}", hist_path))?;
-    let reader = BufReader::new(file);
-    let mut command = None;
-    let mut timestamp = None;
-    for line in reader.lines() {
-        let line = line?;
+    let mut current_command = None;
+    let mut current_timestamp = None;
+    
+    for line in lines {
         if line.trim_start().starts_with("- cmd: ") {
-            if let Some(cmd) = command.take() {
-                entries.push(HistoryEntry {
-                    timestamp,
-                    command: cmd,
-                    session_id: None,
-                });
-                timestamp = None;
+            // Save previous entry if exists
+            if let Some(cmd) = current_command.take() {
+                entries.push(create_entry(cmd, current_timestamp.take()));
             }
-            command = Some(line.trim_start()[7..].to_string());
+            current_command = Some(line.trim_start()[7..].to_string());
         } else if line.trim_start().starts_with("  when: ") {
-            let ts = line.trim_start()[8..].parse::<i64>().ok();
-            timestamp = ts.map(|t| {
-                chrono::Local.timestamp_opt(t, 0).single()
-            }).flatten();
+            current_timestamp = line.trim_start()[8..]
+                .parse::<i64>()
+                .ok()
+                .and_then(|t| Local.timestamp_opt(t, 0).single());
         }
     }
-    if let Some(cmd) = command.take() {
-        entries.push(HistoryEntry {
-            timestamp,
-            command: cmd,
-            session_id: None,
-        });
+    
+    // Add final entry if exists
+    if let Some(cmd) = current_command {
+        entries.push(create_entry(cmd, current_timestamp));
     }
+    
     Ok(entries)
 }
 
-/// Helper: Infer timestamps for plain-text history files (no native timestamps)
-fn infer_timestamps_from_file(hist_path: &std::path::Path, lines: &[String]) -> Vec<Option<DateTime<Local>>> {
-    // Use file mtime as the most recent timestamp, spread backwards
-    let meta = fs::metadata(hist_path).ok();
-    let mtime = meta.and_then(|m| m.modified().ok()).map(|t| DateTime::<Local>::from(t));
-    let n = lines.len();
-    if let Some(last_ts) = mtime {
-        // Spread timestamps backwards by 1 minute per command
-        (0..n).rev().map(|i| Some(last_ts - chrono::Duration::minutes((n-1-i) as i64))).collect()
-    } else {
-        vec![None; n]
+/// Infer timestamps for plain-text history files using file modification time
+fn infer_timestamps_from_file(hist_path: &Path, line_count: usize) -> Vec<Option<DateTime<Local>>> {
+    let mtime = std::fs::metadata(hist_path)
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .map(DateTime::<Local>::from);
+    
+    match mtime {
+        Some(last_ts) => {
+            // Spread timestamps backwards by 1 minute per command
+            (0..line_count)
+                .rev()
+                .map(|i| Some(last_ts - chrono::Duration::minutes((line_count - 1 - i) as i64)))
+                .collect()
+        }
+        None => vec![None; line_count],
     }
+}
+
+/// Parse history files without native timestamps
+fn parse_plain_history(file_name: &str) -> Result<Vec<HistoryEntry>> {
+    let hist_path = get_home_dir()?.join(file_name);
+    let lines: Vec<String> = read_history_file(&hist_path)?
+        .into_iter()
+        .filter(|line| !line.trim().is_empty())
+        .collect();
+    
+    let timestamps = infer_timestamps_from_file(&hist_path, lines.len());
+    
+    Ok(lines
+        .into_iter()
+        .enumerate()
+        .map(|(i, line)| {
+            let timestamp = timestamps.get(i).cloned().unwrap_or(None);
+            create_entry(line.trim().to_string(), timestamp)
+        })
+        .collect())
 }
 
 /// Parse csh history file (~/.history)
 fn parse_csh_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
-    let mut entries = Vec::new();
-    let hist_path = home_dir()
-        .map(|d| d.join(".history"))
-        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
-    if !hist_path.exists() {
-        eprintln!("Warning: csh history file not found at {:?}", hist_path);
-        return Ok(entries);
-    }
-    let file = File::open(&hist_path).context(format!("Failed to open csh history file: {:?}", hist_path))?;
-    let reader = BufReader::new(file);
-    let lines: Vec<String> = reader.lines().filter_map(Result::ok).collect();
-    let timestamps = infer_timestamps_from_file(&hist_path, &lines);
-    for (i, line) in lines.iter().enumerate() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() { continue; }
-        entries.push(HistoryEntry {
-            timestamp: timestamps.get(i).cloned().unwrap_or(None),
-            command: trimmed.to_string(),
-            session_id: None,
-        });
-    }
-    Ok(entries)
+    parse_plain_history(".history")
 }
 
 /// Parse tcsh history file (~/.history)
 fn parse_tcsh_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
-    // tcsh history format is similar to csh, but may include timestamps if set
-    let mut entries = Vec::new();
-    let hist_path = home_dir()
-        .map(|d| d.join(".history"))
-        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
-    if !hist_path.exists() {
-        eprintln!("Warning: tcsh history file not found at {:?}", hist_path);
-        return Ok(entries);
-    }
-    let file = File::open(&hist_path).context(format!("Failed to open tcsh history file: {:?}", hist_path))?;
-    let reader = BufReader::new(file);
-    for line in reader.lines() {
-        let line = line?;
-        let trimmed = line.trim();
-        if trimmed.is_empty() { continue; }
-        // Example: 1234567890	command
-        let (timestamp, command) = if let Some(tab_idx) = trimmed.find('\t') {
-            let ts = trimmed[..tab_idx].parse::<i64>().ok();
-            let cmd = trimmed[tab_idx+1..].to_string();
-            let timestamp = ts.and_then(|t| chrono::Local.timestamp_opt(t, 0).single());
-            (timestamp, cmd)
-        } else {
-            (None, trimmed.to_string())
-        };
-        entries.push(HistoryEntry {
-            timestamp,
-            command,
-            session_id: None,
-        });
-    }
-    Ok(entries)
+    let hist_path = get_home_dir()?.join(".history");
+    let lines = read_history_file(&hist_path)?;
+    
+    Ok(lines
+        .into_iter()
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                return None;
+            }
+            
+            // Check for tab-separated timestamp format: timestamp\tcommand
+            if let Some(tab_idx) = trimmed.find('\t') {
+                let timestamp = trimmed[..tab_idx]
+                    .parse::<i64>()
+                    .ok()
+                    .and_then(|t| Local.timestamp_opt(t, 0).single());
+                let command = trimmed[tab_idx + 1..].to_string();
+                Some(create_entry(command, timestamp))
+            } else {
+                Some(create_entry(trimmed.to_string(), None))
+            }
+        })
+        .collect())
 }
 
 /// Parse ksh history file (~/.sh_history)
 fn parse_ksh_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
-    let mut entries = Vec::new();
-    let hist_path = home_dir()
-        .map(|d| d.join(".sh_history"))
-        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
-    if !hist_path.exists() {
-        eprintln!("Warning: ksh history file not found at {:?}", hist_path);
-        return Ok(entries);
-    }
-    let file = File::open(&hist_path).context(format!("Failed to open ksh history file: {:?}", hist_path))?;
-    let reader = BufReader::new(file);
-    let lines: Vec<String> = reader.lines().filter_map(Result::ok).collect();
-    let timestamps = infer_timestamps_from_file(&hist_path, &lines);
-    for (i, line) in lines.iter().enumerate() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() { continue; }
-        entries.push(HistoryEntry {
-            timestamp: timestamps.get(i).cloned().unwrap_or(None),
-            command: trimmed.to_string(),
-            session_id: None,
-        });
-    }
-    Ok(entries)
+    parse_plain_history(".sh_history")
 }
 
-/// Parse dash history file
+/// Parse dash history file (uses bash format)
 fn parse_dash_history(args: &CliArgs) -> Result<Vec<HistoryEntry>> {
-    // Dash typically uses the same history file as bash
     parse_bash_history(args)
 }
 
-/// Parse sh history file
+/// Parse sh history file (uses bash format)
 fn parse_sh_history(args: &CliArgs) -> Result<Vec<HistoryEntry>> {
-    // sh typically uses the same history file as bash
     parse_bash_history(args)
 }
 
 /// Parse mksh history file (~/.mksh_history)
 fn parse_mksh_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
-    let mut entries = Vec::new();
-    let hist_path = home_dir()
-        .map(|d| d.join(".mksh_history"))
-        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
-    if !hist_path.exists() {
-        eprintln!("Warning: mksh history file not found at {:?}", hist_path);
-        return Ok(entries);
-    }
-    let file = File::open(&hist_path).context(format!("Failed to open mksh history file: {:?}", hist_path))?;
-    let reader = BufReader::new(file);
-    let lines: Vec<String> = reader.lines().filter_map(Result::ok).collect();
-    let timestamps = infer_timestamps_from_file(&hist_path, &lines);
-    for (i, line) in lines.iter().enumerate() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() { continue; }
-        entries.push(HistoryEntry {
-            timestamp: timestamps.get(i).cloned().unwrap_or(None),
-            command: trimmed.to_string(),
-            session_id: None,
-        });
-    }
-    Ok(entries)
+    parse_plain_history(".mksh_history")
 }
 
 /// Parse yash history file (~/.yash_history)
 fn parse_yash_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
-    let mut entries = Vec::new();
-    let hist_path = home_dir()
-        .map(|d| d.join(".yash_history"))
-        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
-    if !hist_path.exists() {
-        eprintln!("Warning: yash history file not found at {:?}", hist_path);
-        return Ok(entries);
-    }
-    let file = File::open(&hist_path).context(format!("Failed to open yash history file: {:?}", hist_path))?;
-    let reader = BufReader::new(file);
-    let lines: Vec<String> = reader.lines().filter_map(Result::ok).collect();
-    let timestamps = infer_timestamps_from_file(&hist_path, &lines);
-    for (i, line) in lines.iter().enumerate() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() { continue; }
-        entries.push(HistoryEntry {
-            timestamp: timestamps.get(i).cloned().unwrap_or(None),
-            command: trimmed.to_string(),
-            session_id: None,
-        });
-    }
-    Ok(entries)
+    parse_plain_history(".yash_history")
 }
 
 /// Parse osh history file (~/.osh_history)
 fn parse_osh_history(_args: &CliArgs) -> Result<Vec<HistoryEntry>> {
-    let mut entries = Vec::new();
-    let hist_path = home_dir()
-        .map(|d| d.join(".osh_history"))
-        .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
-    if !hist_path.exists() {
-        eprintln!("Warning: osh history file not found at {:?}", hist_path);
-        return Ok(entries);
-    }
-    let file = File::open(&hist_path).context(format!("Failed to open osh history file: {:?}", hist_path))?;
-    let reader = BufReader::new(file);
-    let lines: Vec<String> = reader.lines().filter_map(Result::ok).collect();
-    let timestamps = infer_timestamps_from_file(&hist_path, &lines);
-    for (i, line) in lines.iter().enumerate() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() { continue; }
-        entries.push(HistoryEntry {
-            timestamp: timestamps.get(i).cloned().unwrap_or(None),
-            command: trimmed.to_string(),
-            session_id: None,
-        });
-    }
-    Ok(entries)
+    parse_plain_history(".osh_history")
 }
 
 /// Parse live-tracked history file (~/.heist_live_history)
 pub fn parse_heist_live_history() -> Vec<HistoryEntry> {
-    let mut entries = Vec::new();
-    let path = home_dir().map(|d| d.join(".heist_live_history"));
-    if let Some(path) = path {
-        if path.exists() {
-            if let Ok(file) = File::open(&path) {
-                let reader = BufReader::new(file);
-                for line in reader.lines().flatten() {
-                    // Format: 2024-06-09T12:34:56+0000|command
-                    if let Some((ts, cmd)) = line.split_once('|') {
-                        let timestamp = chrono::DateTime::parse_from_str(ts, "%Y-%m-%dT%H:%M:%S%z")
-                            .ok()
-                            .map(|dt| dt.with_timezone(&Local));
-                        entries.push(HistoryEntry {
-                            timestamp,
-                            command: cmd.trim().to_string(),
-                            session_id: None,
-                        });
-                    }
-                }
-            }
-        }
+    let path = match get_home_dir() {
+        Ok(home) => home.join(".heist_live_history"),
+        Err(_) => return Vec::new(),
+    };
+    
+    if !path.exists() {
+        return Vec::new();
     }
-    entries
+    
+    let Ok(file) = File::open(&path) else {
+        return Vec::new();
+    };
+    
+    BufReader::new(file)
+        .lines()
+        .filter_map(|line| line.ok())
+        .filter_map(|line| {
+            // Format: 2024-06-09T12:34:56+0000|command
+            let (ts_str, cmd) = line.split_once('|')?;
+            let timestamp = chrono::DateTime::parse_from_str(ts_str, "%Y-%m-%dT%H:%M:%S%z")
+                .ok()
+                .map(|dt| dt.with_timezone(&Local));
+            
+            Some(create_entry(cmd.trim().to_string(), timestamp))
+        })
+        .collect()
 }
