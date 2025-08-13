@@ -18,7 +18,7 @@ dirs = "6.0.0"
 chrono = { version = "0.4", features = ["serde"] }
 regex = "1.10"
 anyhow = "1.0"
-rayon = { version = "1.10", optional = true }
+rayon = { version = "1.11", optional = true }
 log = "0.4"
 thiserror = "2.0.14"
 atty = "0.2.13"
