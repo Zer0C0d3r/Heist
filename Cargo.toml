@@ -20,7 +20,7 @@ regex = "1.10"
 anyhow = "1.0"
 rayon = { version = "1.11", optional = true }
 log = "0.4"
-thiserror = "2.0.14"
+thiserror = "2.0.15"
 atty = "0.2.13"
 
 [features]
